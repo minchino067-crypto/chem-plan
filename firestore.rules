@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// 記録は plans/{uid} に1件だけ置く。
+// 読み書きできるのは、Googleでログインし、メールが確認済みで、
+// かつ許可したアドレスと完全に一致する場合のみ。
+// 画面側にも同じチェックがあるが、守っているのはこちら側。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner() {
+      return request.auth != null
+          && request.auth.token.email_verified == true
+          && request.auth.token.email.lower() == 'minchino067@gmail.com';
+    }
+
+    match /plans/{uid} {
+      allow read: if isOwner() && request.auth.uid == uid;
+      allow write: if isOwner()
+                   && request.auth.uid == uid
+                   && request.resource.data.state is string
+                   && request.resource.data.state.size() < 700000;
+    }
+
+    // 他はすべて拒否
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -164,6 +164,8 @@ function wk(n){
 const Store = {
   remotePush: null,     // sync.js が差し込む (state)=>void
   applyingRemote: false,
+  account: "",
+  signOut: null,
 };
 
 function setSync(kind, text){
@@ -183,23 +185,26 @@ function toast(msg){
   toastTimer = setTimeout(()=>t.classList.remove("show"), 3200);
 }
 
-function loadLocal(){
+/* localStorage は「前回見た内容」のキャッシュにすぎない。
+   記録の正本はクラウド側にあり、開くたびにそちらで上書きされる。 */
+function cacheKey(){ return LS_KEY + (Store.account ? ":" + Store.account : ""); }
+function loadCache(){
   try{
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(cacheKey()) || localStorage.getItem(LS_KEY);
     if(raw) Object.assign(state, JSON.parse(raw));
   }catch(e){ /* プライベートウィンドウ等。既定値のまま進む */ }
 }
-function saveLocal(){
-  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+function saveCache(){
+  try{ localStorage.setItem(cacheKey(), JSON.stringify(exportState())); }catch(e){}
 }
 
 function persist(){
   state.meta.updatedAt = Date.now();
-  saveLocal();
+  saveCache();
   if(Store.remotePush && !Store.applyingRemote) Store.remotePush(exportState());
 }
 
-/* 遠隔から届いた内容を取り込む。自分が今書いた分より古ければ捨てる。 */
+/* クラウドから届いた内容を取り込む。自分が今書いた分より古ければ捨てる。 */
 function applyRemote(data){
   if(!data || typeof data !== "object") return false;
   const mine = state.meta.updatedAt || 0;
@@ -210,7 +215,7 @@ function applyRemote(data){
   state.errors = Array.isArray(data.errors) ? data.errors : [];
   state.meta   = Object.assign({}, state.meta, data.meta || {});
   Store.applyingRemote = false;
-  saveLocal();
+  saveCache();
   render();
   return true;
 }
@@ -220,7 +225,7 @@ function exportState(){
 }
 function importState(data, {silent} = {}){
   if(!data || typeof data !== "object" || !data.weeks) throw new Error("形式が違います");
-  try{ localStorage.setItem(LS_KEY + ":backup", JSON.stringify(exportState())); }catch(e){}
+  try{ localStorage.setItem(cacheKey() + ":backup", JSON.stringify(exportState())); }catch(e){}
   state.weeks  = data.weeks || {};
   state.errors = Array.isArray(data.errors) ? data.errors : [];
   state.meta   = Object.assign({}, state.meta, data.meta || {});
@@ -236,6 +241,12 @@ window.PlanStore = {
   setStatus: setSync,
   toast,
   onReady(push){ Store.remotePush = push; },
+  setAccount(email, signOut){
+    Store.account = email || "";
+    Store.signOut = signOut || null;
+    loadCache();            // このアカウントの前回内容をひとまず出す
+    render();
+  },
 };
 
 /* ============================================================
@@ -840,20 +851,6 @@ function renderRule(){
 }
 
 /* --- 設定 --- */
-function syncCode(){ try{ return localStorage.getItem("chem:syncCode") || ""; }catch(e){ return ""; } }
-function setSyncCode(v){
-  try{ v ? localStorage.setItem("chem:syncCode", v) : localStorage.removeItem("chem:syncCode"); }catch(e){}
-}
-function makeCode(){
-  const abc = "abcdefghjkmnpqrstuvwxyz23456789";   // 紛らわしい文字は除く
-  const buf = new Uint32Array(12);
-  crypto.getRandomValues(buf);
-  const raw = Array.from(buf, n => abc[n % abc.length]).join("");
-  return raw.slice(0,4) + "-" + raw.slice(4,8) + "-" + raw.slice(8,12);
-}
-function shareUrl(code){
-  return location.origin + location.pathname + "#s=" + encodeURIComponent(code);
-}
 async function copy(text, label){
   try{ await navigator.clipboard.writeText(text); toast(label + "をコピーしました"); }
   catch(e){ toast("コピーできませんでした。長押しで選択してください"); }
@@ -862,59 +859,24 @@ async function copy(text, label){
 function renderSet(){
   const root = document.getElementById("viewSet");
   root.textContent = "";
-  const code = syncCode();
-  const configured = !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId);
 
-  /* 同期 */
+  /* アカウント */
   const sc = el("section",{class:"card"});
-  sc.append(el("p",{class:"eyebrow",text:"端末間の同期"}));
-
-  if(!configured){
+  sc.append(el("p",{class:"eyebrow",text:"記録の保存先"}));
+  if(Store.account){
     sc.append(
-      el("div",{class:"verdict"},"同期はまだ設定されていません。このままでも、この端末のブラウザに全部保存されて普通に使えます。"),
-      el("p",{class:"muted",style:"margin-top:10px"},"同期を使うには firebase-config.js に接続先を入れます。手順は README.md にあります。"),
-    );
-  }else if(!code){
-    sc.append(
-      el("p",{class:"muted",style:"margin-bottom:12px"},"同期コードを作ると、同じコードを入れた端末どうしで進捗が一致します。ログインは要りません。"),
-      el("button",{class:"btn primary",onclick:()=>{
-        const c = makeCode();
-        setSyncCode(c);
-        toast("同期を有効にしました");
-        render();
-        setTimeout(()=>location.reload(), 700);
-      }},"同期コードを作る"),
-      el("hr",{class:"hair"}),
-      el("label",{class:"fld",text:"すでにコードがある場合はここに入れる"}),
-      (()=>{
-        const row = el("div",{class:"row"});
-        const inp = el("input",{type:"text",placeholder:"xxxx-xxxx-xxxx",autocapitalize:"off",autocorrect:"off",spellcheck:"false"});
-        row.append(el("div",{style:"flex:2"}, inp),
-          el("div",{class:"shrink"}, el("button",{class:"btn",onclick:()=>{
-            const v = inp.value.trim().toLowerCase();
-            if(v.length < 8){ toast("コードが短すぎます"); return; }
-            setSyncCode(v); location.reload();
-          }},"この端末をつなぐ")));
-        return row;
-      })(),
+      el("p",{style:"margin-bottom:4px"},"記録は", el("b",{text:"クラウド"}),"に保存されています。"),
+      el("p",{class:"muted",style:"margin-bottom:14px"},
+        "この端末には残りません。PCでもスマホでも、同じアカウントでログインすれば同じ内容が出ます。" +
+        "圏外のときは一時的に端末内に貯めて、つながった時点で送ります。"),
+      el("div",{class:"acct"},
+        el("div",{class:"acct-label",text:"ログイン中"}),
+        el("div",{class:"acct-mail mono",text:Store.account}),
+      ),
+      el("button",{class:"btn danger",style:"margin-top:12px",onclick:()=>{ if(Store.signOut) Store.signOut(); }},"ログアウト"),
     );
   }else{
-    const url = shareUrl(code);
-    sc.append(
-      el("p",{class:"muted",style:"margin-bottom:10px"},"別の端末でこのリンクを開くと、そのまま同じ記録につながります。"),
-      el("div",{class:"codebox"},
-        el("div",{class:"codeval mono",text:code}),
-        el("div",{style:"display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"},
-          el("button",{class:"btn",onclick:()=>copy(url,"リンク")},"リンクをコピー"),
-          el("button",{class:"btn",onclick:()=>copy(code,"コード")},"コードをコピー"),
-        ),
-      ),
-      el("p",{class:"muted",style:"margin-top:10px"},"このコードを知っている人は記録を読み書きできます。人に見せないでください。"),
-      el("button",{class:"btn danger",style:"margin-top:8px",onclick:()=>{
-        if(!confirm("この端末を同期から外します。記録はこの端末に残ります。")) return;
-        setSyncCode(""); location.reload();
-      }},"この端末の同期をやめる"),
-    );
+    sc.append(el("div",{class:"verdict"},"まだログインしていません。"));
   }
   root.append(sc);
 
@@ -1012,18 +974,6 @@ const syncBtn = document.getElementById("syncBtn");
 if(syncBtn) syncBtn.addEventListener("click", ()=>{ setView("set"); window.scrollTo({top:0}); });
 
 applyTheme();
-loadLocal();
-
-/* #s=コード つきのリンクで開かれたら、その同期コードを採用する */
-(function(){
-  const m = /[#&]s=([^&]+)/.exec(location.hash);
-  if(!m) return;
-  const c = decodeURIComponent(m[1]).trim().toLowerCase();
-  history.replaceState(null, "", location.pathname + location.search);
-  if(c && c !== syncCode()){
-    setSyncCode(c);
-  }
-})();
 
 shownWeek = currentWeekNo();
 render();
