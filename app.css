@@ -593,3 +593,36 @@ ul.tight li{margin-bottom:6px;font-size:14.5px;line-height:1.75}
 .rd-mark-label{font-family:var(--ser);font-size:14.5px;letter-spacing:.06em}
 .rd-mark.exam .rd-mark-label{color:var(--shu)}
 .rd-mark-sub{font-size:12px;color:var(--sumi-3);margin-top:1px}
+
+/* ---------------- 科目 ---------------- */
+.sec.subj > .hd{border-bottom-color:color-mix(in oklab,var(--c) 32%,var(--rule))}
+.subj-hd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.subj-name{font-family:var(--ser);font-size:15px;letter-spacing:.14em;
+  color:color-mix(in oklab,var(--c),white var(--lift))}
+.subj-min{font-size:11px;color:var(--sumi-3);letter-spacing:.06em}
+.subj-title{font-family:var(--san);font-size:12.5px;color:var(--sumi-3);
+  letter-spacing:0;font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.subj-count{margin-left:auto;font-family:var(--ser);font-size:13px;color:var(--sumi-3);white-space:nowrap}
+.subj-count b{font-size:17px;color:var(--sumi)}
+.todo-row.routine .todo-text{color:var(--sumi-2)}
+
+.cond-sub{font-family:var(--ser);font-size:12px;letter-spacing:.12em;margin:14px 0 2px;
+  color:color-mix(in oklab,var(--c),white var(--lift))}
+.cond-sub:first-child{margin-top:0}
+
+/* 日ごと：1日の中を科目で分ける */
+.d2-sub{border-left:2px solid color-mix(in oklab,var(--c) 45%,var(--rule));
+  padding:6px 0 6px 12px;margin:8px 0 0}
+.d2-sub-head{display:flex;align-items:center;gap:9px;margin-bottom:2px}
+.d2-sub-head .subj-name{font-size:12.5px;letter-spacing:.1em}
+.d2-sub-head .d2-count{margin-left:auto;font-family:var(--ser);font-size:11.5px;color:var(--sumi-3)}
+.d2-sub .todo-row{padding:5px 0;border-bottom:0;grid-template-columns:auto minmax(0,1fr)}
+.d2-sub .todo-text{font-size:14px;line-height:1.55}
+
+/* 見開き：列の中を科目で分ける */
+.sp-sub{display:flex;align-items:baseline;gap:7px;margin:9px 0 3px;padding-top:6px;
+  border-top:1px solid color-mix(in oklab,var(--c) 26%,var(--rule-2))}
+.sp-sub:first-of-type{border-top:0;padding-top:0;margin-top:4px}
+.sp-sub .subj-name{font-size:11.5px;letter-spacing:.08em}
+.sp-sub .sp-count{margin-left:auto}
+.spread{grid-auto-columns:minmax(210px,1fr)}
