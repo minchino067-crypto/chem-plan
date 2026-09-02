@@ -12,10 +12,10 @@
 window.ALLOWED_EMAIL = "minchino067@gmail.com";
 
 window.FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyAC_47eiX73GakhqyWOlSeYM1wJeQABt_g",
+  authDomain: "chem-plan-260902-13737.firebaseapp.com",
+  projectId: "chem-plan-260902-13737",
+  storageBucket: "chem-plan-260902-13737.firebasestorage.app",
+  messagingSenderId: "823295388015",
+  appId: "1:823295388015:web:8f296710ec8809da3ea09a"
 };

@@ -68,10 +68,10 @@ GitHub の Settings → Pages → Source を「Deploy from a branch」、Branch 
 
 更新するときは `git add -A && git commit -m "…" && git push` だけ。1〜2分で反映される。
 
-## 保存とログインのセットアップ
+## 保存とログインのセットアップ（設定済み）
 
-`firebase-config.js` が空だとアプリは開かない（記録をクラウドにしか置かない設計のため）。
-一度だけ次をやる。無料枠で足りる。
+プロジェクト `chem-plan-260902-13737`（ロケーション asia-northeast1）で設定済み。
+以下は作り直すときの手順。
 
 ### 1. CLIでログイン（自分のターミナルで）
 
@@ -83,9 +83,9 @@ npx -y firebase-tools login
 
 ```bash
 npx -y firebase-tools projects:create --display-name "chem-plan"
-npx -y firebase-tools firestore:databases:create "(default)" --location asia-northeast1 --project <プロジェクトID>
-npx -y firebase-tools apps:create web "chem-plan" --project <プロジェクトID>
-npx -y firebase-tools apps:sdkconfig web --project <プロジェクトID>
+npx -y firebase-tools firestore:databases:create "(default)" --location asia-northeast1 --project chem-plan-260902-13737
+npx -y firebase-tools apps:create web "chem-plan" --project chem-plan-260902-13737
+npx -y firebase-tools apps:sdkconfig web --project chem-plan-260902-13737
 ```
 
 最後のコマンドが出す `firebaseConfig` を `firebase-config.js` に貼る。
@@ -100,7 +100,7 @@ https://console.firebase.google.com で、作ったプロジェクトを開き:
 ### 4. ルールを反映して公開
 
 ```bash
-npx -y firebase-tools deploy --only firestore:rules --project <プロジェクトID>
+npx -y firebase-tools deploy --only firestore:rules --project chem-plan-260902-13737
 git add -A && git commit -m "接続先を設定" && git push
 ```
 
