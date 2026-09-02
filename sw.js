@@ -1,6 +1,6 @@
 /* オフラインで開けるようにするだけの Service Worker。
    中身を更新したら VERSION を上げる（古いキャッシュはその時に捨てる）。 */
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL = "shell-" + VERSION;
 const FONTS = "fonts-" + VERSION;
 
@@ -68,8 +68,10 @@ self.addEventListener("fetch", e => {
     return;
   }
 
-  // それ以外の自サイトのファイル：キャッシュ優先、無ければ取りに行く
-  if (url.origin === location.origin) {
+  if (url.origin !== location.origin) return;
+
+  // アイコンなど変わらないもの：キャッシュ優先
+  if (/\.(png|svg|ico|woff2?)$/i.test(url.pathname)) {
     e.respondWith(
       caches.match(req, { ignoreSearch: true }).then(hit =>
         hit || fetch(req).then(r => {
@@ -78,5 +80,17 @@ self.addEventListener("fetch", e => {
         })
       )
     );
+    return;
   }
+
+  // コード（css/js/json）：まずネットワーク、駄目ならキャッシュ。
+  // ここをキャッシュ優先にすると、更新しても古いままになる。
+  e.respondWith(
+    fetch(req)
+      .then(r => {
+        if (r.ok) { const cp = r.clone(); caches.open(SHELL).then(c => c.put(req, cp)); }
+        return r;
+      })
+      .catch(() => caches.match(req, { ignoreSearch: true }))
+  );
 });
