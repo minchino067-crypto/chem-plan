@@ -1,0 +1,19 @@
+{
+  "name": "二次化学 26週ノート",
+  "short_name": "化学26週",
+  "description": "金沢大 理系一括 二次化学の6ヶ月26週計画。日々のタスク、週末チェック、誤答の3分類記録。",
+  "lang": "ja",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F4F6F9",
+  "theme_color": "#1C2438",
+  "categories": ["education", "productivity"],
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

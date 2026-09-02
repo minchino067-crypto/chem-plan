@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>二次化学 26週ノート</title>
+<meta name="description" content="金沢大 理系一括 二次化学の6ヶ月26週計画。日々のタスク、週末チェック、誤答の3分類記録。">
+<meta name="theme-color" content="#F4F6F9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#11141C" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/favicon-32.png" sizes="32x32">
+<link rel="icon" href="./icons/icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="化学26週">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="./app.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">二次化学 26週ノート <span>／ 金沢大 理系一括</span></div>
+    <button class="sync" id="syncBtn" type="button" title="同期の設定を開く">
+      <i class="dot" id="syncDot"></i><span id="syncTxt">この端末に保存</span>
+    </button>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-view="week" aria-selected="true">今週</button>
+    <button role="tab" data-view="all" aria-selected="false">26週</button>
+    <button role="tab" data-view="err" aria-selected="false">誤答記録</button>
+    <button role="tab" data-view="rule" aria-selected="false">ルール</button>
+    <button role="tab" data-view="set" aria-selected="false">設定</button>
+  </nav>
+</header>
+
+<div class="wrap">
+  <main id="viewWeek"></main>
+  <main id="viewAll" class="hidden"></main>
+  <main id="viewErr" class="hidden"></main>
+  <main id="viewRule" class="hidden"></main>
+  <main id="viewSet" class="hidden"></main>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="./app.js"></script>
+<script src="./firebase-config.js"></script>
+<script type="module" src="./sync.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
