@@ -807,16 +807,6 @@ function renderWeek(){
   sel.addEventListener("change", function(){ shownWeek=Number(sel.value); editMode=false; render(); });
 
   const head = el("section",{class:"sec",style:"--c:var(" + P.v + ")"});
-  const info = el("div",{class:"body"});
-  subs.forEach(function(x){
-    const sd = subjOf(w, x.k);
-    if(!sd) return;
-    info.append(el("p",{class:"note",style:"margin:0 0 8px"},
-      el("b",{text:x.label+"　"}), sd.title,
-      sd.amount ? el("span",{class:"muted",style:"display:block",text:sd.amount}) : null));
-  });
-  info.append(el("p",{class:"muted",style:"margin:8px 0 0",text:"化学Anki　"+P.anki}));
-
   head.append(
     el("div",{class:"wk-head"},
       el("span",{class:"wk-no",text:"第 "+w.n+" 週"}),
@@ -831,8 +821,26 @@ function renderWeek(){
       el("span",{class:"ph",style:"--c:var(" + P.v + ")",text:P.name}),
       el("span",{class:"muted",style:"margin-left:10px",
         text: subs.map(function(x){ return x.label+x.min+"分"; }).join("　")})),
-    el("details",{class:"fold"}, el("summary",{text:"この週の狙いと分量"}),
-      el("div",{class:"body"}, el("p",{class:"note",text:w.note}), info)));
+    el("details",{class:"fold"}, el("summary",{text:"この週の狙い"}),
+      el("div",{class:"body"},
+        el("p",{class:"note",style:"margin:0 0 6px",text:w.note}),
+        el("p",{class:"muted",style:"margin:0",text:"化学Anki　"+P.anki}))));
+
+  /* 今週の範囲 — 折りたたまずに常に出す */
+  const scope = el("div",{class:"scope"});
+  subs.forEach(function(x){
+    const sd = subjOf(w, x.k);
+    if(!sd) return;
+    const p7 = (function(){ let d=0,t=0; for(let i=0;i<7;i++){ const q=dayProgress(w.n,x.k,i); d+=q.done; t+=q.total; } return {d:d,t:t}; })();
+    scope.append(el("div",{class:"scope-row",style:"--c:var(" + subjColor(w,x.k) + ")"},
+      el("span",{class:"scope-sub",text:x.label}),
+      el("div",{class:"scope-body"},
+        el("div",{class:"scope-title",text:sd.title}),
+        sd.amount ? el("div",{class:"scope-amount",text:sd.amount}) : null),
+      el("span",{class:"scope-count"}, el("b",{class:"num",text:String(p7.d)}), " / "+p7.t)));
+  });
+  head.append(el("p",{class:"hd",style:"margin:22px 0 10px",text:"今週の範囲"}), scope);
+
   main.append(head);
 
   const wp = weekProgress(w.n);
