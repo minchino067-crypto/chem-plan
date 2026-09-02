@@ -147,7 +147,7 @@ const state = {
 };
 
 function blankWeek(){
-  return {d:[false,false,false,false,false,false,false], m:[null,null,null,null,null,null,null],
+  return {d:[false,false,false,false,false,false,false],
           c:[false,false,false], score:null, anki:null, memo:"", tasks:null, conds:null};
 }
 function wk(n){
@@ -361,7 +361,7 @@ function renderWeek(){
       el("p",{class:"eyebrow",style:"margin:0",text:"日ごとのタスク"}),
       el("button",{class:"btn",style:"margin-left:auto",onclick:()=>{ editMode=!editMode; render(); }}, editMode ? "編集を終える" : "内容を編集"),
     ),
-    el("p",{class:"muted",style:"margin:6px 0 10px"},"月〜木＝よくわかる30分＋基礎問60分／金・土＝演習／日＝週末チェック。数字は実際にやった分。"),
+    el("p",{class:"muted",style:"margin:6px 0 10px"},"月〜木＝よくわかるを読む＋基礎問／金・土＝問題演習／日＝週末チェック。行をタップすると消える。"),
   );
 
   const days = el("div",{class:"days"});
@@ -383,15 +383,6 @@ function renderWeek(){
     }
 
     row.append(
-      el("div",{class:"dmin"}, (()=>{
-        const inp = el("input",{type:"number",min:"0",max:"600",step:"5",placeholder:"分","aria-label":DOW[i]+"曜の学習時間（分）"});
-        if(s.m[i] != null) inp.value = s.m[i];
-        inp.addEventListener("change", ()=>{
-          const v = inp.value === "" ? null : Math.max(0, Number(inp.value));
-          wk(w.n).m[i] = v; persist(); renderWeekStatsOnly();
-        });
-        return inp;
-      })()),
       (()=>{
         const c = el("input",{type:"checkbox",class:"chk","aria-label":DOW[i]+"曜を完了"});
         c.checked = !!s.d[i];
@@ -403,10 +394,6 @@ function renderWeek(){
   });
   dayCard.append(days);
 
-  const mins = s.m.reduce((a,b)=>a+(b||0),0);
-  dayCard.append(el("p",{class:"muted",style:"margin-top:10px"},
-    "今週の合計　", el("b",{class:"mono",style:"font-size:15px;color:var(--ink)",text:mins+"分"}),
-    "（" + (mins/60).toFixed(1) + "時間）　目安 90分×7 = 630分"));
   if(editMode && wk(w.n).tasks){
     dayCard.append(el("button",{class:"btn",style:"margin-top:8px",onclick:()=>{ wk(w.n).tasks=null; persist(); render(); }},"元の計画に戻す"));
   }
@@ -472,8 +459,6 @@ function renderWeek(){
   root.append(mc);
 }
 
-function renderWeekStatsOnly(){ /* 分の合計だけ更新したい場面用（現状は全描画で足りる） */ renderWeek(); }
-
 function toggleDay(n, i){
   const s = wk(n);
   s.d[i] = !s.d[i];
@@ -491,7 +476,8 @@ function renderAll(){
   /* 統計 */
   const totalDays = 26*7;
   const doneDays = WEEKS.reduce((a,w)=>a+wk(w.n).d.filter(Boolean).length,0);
-  const totalMin = WEEKS.reduce((a,w)=>a+wk(w.n).m.reduce((x,y)=>x+(y||0),0),0);
+  const checked = WEEKS.filter(w=>wk(w.n).score != null);
+  const passed  = checked.filter(w=>wk(w.n).score >= 80).length;
   const toN = Math.max(0, diffDays(today, state.meta.examN));
   const toK = Math.max(0, diffDays(today, state.meta.examK));
 
@@ -499,7 +485,7 @@ function renderAll(){
   st.append(el("p",{class:"eyebrow",text:"現在地"}),
     el("div",{class:"stats"},
       el("div",{class:"stat"}, el("b",{class:"mono",text:doneDays+"/"+totalDays}), el("span",{text:"消化した日"})),
-      el("div",{class:"stat"}, el("b",{class:"mono",text:(totalMin/60).toFixed(1)+"h"}), el("span",{text:"累計 化学時間"})),
+      el("div",{class:"stat"}, el("b",{class:"mono",text:passed+"/"+checked.length}), el("span",{text:"週末チェック通過"})),
       el("div",{class:"stat"}, el("b",{class:"mono",text:toK+"日"}), el("span",{text:"共通テストまで"})),
       el("div",{class:"stat"}, el("b",{class:"mono",text:toN+"日"}), el("span",{text:"二次試験まで"})),
     ));
