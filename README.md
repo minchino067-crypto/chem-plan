@@ -68,6 +68,10 @@ GitHub の Settings → Pages → Source を「Deploy from a branch」、Branch 
 
 更新するときは `git add -A && git commit -m "…" && git push` だけ。1〜2分で反映される。
 
+GitHub Pages は `max-age=600` を返すので、素直に取りに行くと最大10分は
+古いファイルが返る。Service Worker 側で `cache: "no-cache"` を付けて
+毎回サーバーに確認させているため、リロード1回で新しい版が届く。
+
 ## 保存とログインのセットアップ（設定済み）
 
 プロジェクト `chem-plan-260902-13737`（ロケーション asia-northeast1）で設定済み。

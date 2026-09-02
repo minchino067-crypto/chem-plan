@@ -1,6 +1,6 @@
 /* オフラインで開けるようにするだけの Service Worker。
    中身を更新したら VERSION を上げる（古いキャッシュはその時に捨てる）。 */
-const VERSION = "v5";
+const VERSION = "v6";
 const SHELL = "shell-" + VERSION;
 const FONTS = "fonts-" + VERSION;
 
@@ -22,7 +22,9 @@ const ASSETS = [
 self.addEventListener("install", e => {
   e.waitUntil(
     caches.open(SHELL)
-      .then(c => Promise.allSettled(ASSETS.map(u => c.add(u))))
+      .then(c => Promise.allSettled(
+        ASSETS.map(u => c.add(new Request(u, { cache: "reload" })))
+      ))
       .then(() => self.skipWaiting())
   );
 });
@@ -36,6 +38,15 @@ self.addEventListener("activate", e => {
       .then(() => self.clients.claim())
   );
 });
+
+/* GitHub Pages は max-age=600 を返す。素の fetch はその 10 分間、
+   ブラウザのHTTPキャッシュから古いファイルを返してしまい、
+   「ネットワーク優先」が意味をなさない。毎回サーバーに確認させる
+   （変わっていなければ 304 で返ってくるので重くはならない）。 */
+function fresh(req) {
+  try { return new Request(req, { cache: "no-cache" }); }
+  catch (e) { return req; }
+}
 
 self.addEventListener("fetch", e => {
   const req = e.request;
@@ -61,7 +72,7 @@ self.addEventListener("fetch", e => {
   // 画面本体：まずネットワーク、駄目ならキャッシュ（更新が届くように）
   if (req.mode === "navigate") {
     e.respondWith(
-      fetch(req)
+      fetch(fresh(req))
         .then(r => { const cp = r.clone(); caches.open(SHELL).then(c => c.put("./index.html", cp)); return r; })
         .catch(() => caches.match("./index.html", { ignoreSearch: true }).then(r => r || caches.match("./")))
     );
@@ -86,7 +97,7 @@ self.addEventListener("fetch", e => {
   // コード（css/js/json）：まずネットワーク、駄目ならキャッシュ。
   // ここをキャッシュ優先にすると、更新しても古いままになる。
   e.respondWith(
-    fetch(req)
+    fetch(fresh(req))
       .then(r => {
         if (r.ok) { const cp = r.clone(); caches.open(SHELL).then(c => c.put(req, cp)); }
         return r;
