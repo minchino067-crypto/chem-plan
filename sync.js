@@ -159,11 +159,19 @@ showGate(LOADING);
     const ref = fs.doc(db, "plans", user.uid);
     let first = true;
 
+    /* 圏外かどうかは回線の状態で判断する。Firestore の最初の応答は
+       接続できていてもキャッシュから届くので、それを根拠にはできない。 */
+    function showLive(){
+      S.setStatus("on", navigator.onLine ? "クラウドに保存" : "オフライン（つながったら送ります）");
+    }
+    window.addEventListener("online",  showLive);
+    window.addEventListener("offline", showLive);
+
     fs.onSnapshot(ref, snap => {
       hideGate();
       if(!snap.exists()){
         if(first){ first = false; push(S.get(), true); }   // まだ無いので今の内容を置く
-        S.setStatus("on", "クラウドに保存");
+        showLive();
         return;
       }
       first = false;
@@ -172,7 +180,7 @@ showGate(LOADING);
         try{ payload = JSON.parse(payload); }catch(e){ return; }
       }
       const changed = S.apply(payload);
-      S.setStatus("on", snap.metadata.fromCache ? "オフライン（未送信）" : "クラウドに保存");
+      showLive();
       if(changed && !snap.metadata.hasPendingWrites) S.toast("別の端末の変更を取り込みました");
     }, err => {
       console.warn("[db] 受信できませんでした", err);
@@ -201,10 +209,12 @@ showGate(LOADING);
             savedAt: fs.serverTimestamp(),
             email: user.email,
           });
-          S.setStatus("on", "クラウドに保存");
+          showLive();
         }catch(e){
           console.warn("[db] 保存できませんでした", e);
-          S.setStatus("off", e.code === "permission-denied" ? "保存を拒否されました" : "未送信（オフライン）");
+          S.setStatus(navigator.onLine ? "off" : "on",
+            e.code === "permission-denied" ? "保存を拒否されました"
+            : navigator.onLine ? "保存できませんでした" : "オフライン（つながったら送ります）");
         }
       }, now ? 0 : 800);
     }
