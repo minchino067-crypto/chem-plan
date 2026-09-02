@@ -150,7 +150,7 @@ const state = {
   //   extra:[{id,text,day,done}] 自分で足したタスク
   errors: [],         // {id, ref, date, cause, r:[null|"YYYY-MM-DD" x3], cleared:false, wk:n}
   meta: {pledge:"", recovery:["","",""], examK:"2027-01-16", examN:"2027-02-25",
-         weekLayout:"day", allLayout:"list", lastRef:"", onboarded:false},
+         weekLayout:"day", allLayout:"list", lastRef:""},
 };
 
 function blankWeek(){
@@ -1313,29 +1313,6 @@ function applyTheme(){
   else document.documentElement.setAttribute("data-theme", t);
 }
 
-/* ---------------- はじめの一度だけ ---------------- */
-function onboard(){
-  if(state.meta.onboarded) return;
-  const sh = document.getElementById("sheet");
-  sh.textContent = ""; sh.hidden = false;
-  const pl = el("textarea",{rows:"2",placeholder:"例：日曜の白紙チェックだけは何があってもやる"});
-  const rv = el("input",{type:"text",placeholder:"例：飛ばした翌日はAnkiだけやる"});
-  const done = ()=>{
-    state.meta.pledge = pl.value.trim();
-    state.meta.recovery[0] = rv.value.trim();
-    state.meta.onboarded = true;
-    persist(); sh.hidden = true; sh.textContent = ""; render();
-  };
-  sh.append(el("div",{class:"sheet-in"},
-    el("p",{class:"hd",style:"margin-bottom:16px",text:"はじめに、二つだけ"}),
-    el("p",{class:"note"},"守れる約束を一つと、崩れた日の戻り方を一つ。増やさないほうが続く。あとで「運用のルール」から直せる。"),
-    el("p",{class:"fld",style:"margin:18px 0 5px",text:"この六ヶ月で自分が守ること"}), pl,
-    el("p",{class:"fld",style:"margin:16px 0 5px",text:"崩れた日の復帰ルール"}), rv,
-    el("div",{style:"display:flex;gap:9px;margin-top:22px"},
-      el("button",{class:"btn primary",style:"flex:1",onclick:done},"はじめる"),
-      el("button",{class:"btn",onclick:()=>{ state.meta.onboarded=true; persist(); sh.hidden=true; sh.textContent=""; }},"あとで"))));
-}
-
 /* ---------------- ルーティング ---------------- */
 const VIEWS = {today:"viewToday", week:"viewWeek", all:"viewAll",
                err:"viewErr", rule:"viewRule", set:"viewSet"};
@@ -1393,4 +1370,3 @@ applyTheme();
 try{ localStorage.removeItem("chem:syncCode"); }catch(e){}
 shownWeek = currentWeekNo();
 render();
-setTimeout(onboard, 400);
