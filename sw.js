@@ -1,6 +1,6 @@
 /* オフラインで開けるようにするだけの Service Worker。
    中身を更新したら VERSION を上げる（古いキャッシュはその時に捨てる）。 */
-const VERSION = "v11";
+const VERSION = "v12";
 const SHELL = "shell-" + VERSION;
 const FONTS = "fonts-" + VERSION;
 
