@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>二次化学 26週ノート</title>
-<meta name="description" content="金沢大 理系一括 二次化学の6ヶ月26週計画。日々のタスク、週末チェック、誤答の3分類記録。">
-<meta name="theme-color" content="#F4F6F9" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#11141C" media="(prefers-color-scheme: dark)">
+<meta name="description" content="金沢大 理系一括 二次化学の6ヶ月26週計画。">
+<meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16171A" media="(prefers-color-scheme: dark)">
 <meta name="color-scheme" content="light dark">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/favicon-32.png" sizes="32x32">
@@ -17,35 +17,43 @@
 <meta name="apple-mobile-web-app-title" content="化学26週">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;500;700&family=Zen+Kaku+Gothic+New:wght@400;500&display=swap">
 <link rel="stylesheet" href="./app.css">
 </head>
 <body>
 
 <header class="top">
   <div class="top-in">
-    <div class="brand">二次化学 26週ノート <span>／ 金沢大 理系一括</span></div>
-    <button class="sync" id="syncBtn" type="button" title="同期の設定を開く">
-      <i class="dot" id="syncDot"></i><span id="syncTxt">この端末に保存</span>
-    </button>
+    <h1 class="brand">二次化学　二十六週</h1>
+    <button class="icon-btn" id="menuBtn" type="button" aria-label="その他" aria-expanded="false">⋯</button>
   </div>
-  <nav class="tabs" role="tablist">
-    <button role="tab" data-view="week" aria-selected="true">今週</button>
-    <button role="tab" data-view="all" aria-selected="false">26週</button>
-    <button role="tab" data-view="err" aria-selected="false">誤答記録</button>
-    <button role="tab" data-view="rule" aria-selected="false">ルール</button>
-    <button role="tab" data-view="set" aria-selected="false">設定</button>
-  </nav>
+  <div class="menu" id="menu" hidden>
+    <button type="button" data-go="rule">運用のルール</button>
+    <button type="button" data-go="set">設定と保存先</button>
+    <button type="button" id="printBtn">この週を印刷</button>
+    <div class="menu-foot"><i class="dot" id="syncDot"></i><span id="syncTxt">…</span></div>
+  </div>
 </header>
 
 <div class="wrap">
-  <main id="viewWeek"></main>
-  <main id="viewAll" class="hidden"></main>
-  <main id="viewErr" class="hidden"></main>
-  <main id="viewRule" class="hidden"></main>
-  <main id="viewSet" class="hidden"></main>
+  <main id="viewToday"></main>
+  <main id="viewWeek" hidden></main>
+  <main id="viewAll" hidden></main>
+  <main id="viewErr" hidden></main>
+  <main id="viewRule" hidden></main>
+  <main id="viewSet" hidden></main>
 </div>
 
+<nav class="nav" role="tablist" aria-label="画面">
+  <button role="tab" data-view="today" aria-selected="true">今日</button>
+  <button role="tab" data-view="week" aria-selected="false">今週</button>
+  <button role="tab" data-view="all" aria-selected="false">全体</button>
+  <button role="tab" data-view="err" aria-selected="false">誤答</button>
+</nav>
+
+<button class="fab" id="fab" type="button" aria-label="誤答を記録">＋ 誤答</button>
+
+<div id="sheet" class="sheet" hidden></div>
 <div id="gate" class="gate" role="dialog" aria-modal="true" aria-label="ログイン"></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

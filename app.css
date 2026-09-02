@@ -1,464 +1,550 @@
+/* ==================================================================
+   二次化学 二十六週
+   墨（sumi）と和紙（washi）の階調だけで組む。面は分けず、余白と細い罫で分ける。
+   彩度は分野の識別にだけ使い、背景を染めない。朱は「今日」の一点だけ。
+   ================================================================== */
+
 :root{
-  --ground:#F4F6F9;
-  --surface:#FFFFFF;
-  --sunk:#EDF0F5;
-  --ink:#1C2438;
-  --ink-2:#414A5E;
-  --ink-3:#5F6980;
-  --rule:#D5DAE4;
-  --rule-soft:#E7EAF1;
-  --good:#2F7D5B;
-  --warn:#B0761A;
-  --bad:#A8494E;
+  --washi:#F7F6F3;      /* 地 */
+  --washi-2:#FFFFFF;    /* 浮かせる面（入力欄など最小限） */
+  --sumi:#23262B;       /* 墨 */
+  --sumi-2:#575D68;
+  --sumi-3:#8A8F98;
+  --rule:#DBD8D1;       /* 罫 */
+  --rule-2:#EAE7E1;
+  --shu:#B4472F;        /* 朱。今日の印だけ */
+  --sunk:#EFEDE8;
+  --good:#4A6B4F;
+  --warn:#8A6A2F;
+  --bad:#A3503C;
   --lift:0%;
-  --tint:12%;
-  --tint-strong:22%;
-  --check:#FFFFFF;
-  --shadow:0 1px 2px rgba(28,36,56,.06), 0 6px 18px rgba(28,36,56,.05);
-  --ph-kiso:#2E86C1;
-  --ph-riron:#B87716;
-  --ph-muki:#54901F;
-  --ph-yuki:#B04E10;
-  --ph-kobun:#6E9A2C;
-  --ph-kyote:#6E7488;
-  --ph-ensyu:#2B3A67;
+  --check:#F7F6F3;
+
+  /* 分野。彩度を落とした伝統色。細い罫と小さな文字にだけ使う */
+  --ph-kiso:#4A6B84;    /* 藍 */
+  --ph-riron:#8C6B3F;   /* 黄土 */
+  --ph-muki:#5B6B45;    /* 苔 */
+  --ph-yuki:#8A5237;    /* 錆 */
+  --ph-kobun:#6B7A4A;   /* 若草 */
+  --ph-kyote:#6E7076;   /* 鼠 */
+  --ph-ensyu:#3D4A63;   /* 紺 */
+
+  --ser:"Zen Old Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+  --san:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --ground:#11141C;
-    --surface:#181C26;
-    --sunk:#1F2431;
-    --ink:#E5E8F0;
-    --ink-2:#B7BECD;
-    --ink-3:#98A0B2;
-    --rule:#333A4A;
-    --rule-soft:#262C39;
-    --good:#5FBE90;
-    --warn:#D9A44A;
-    --bad:#D98187;
-    --lift:34%;
-    --tint:20%;
-    --tint-strong:34%;
-    --check:#11141C;
-    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.28);
+    --washi:#16171A;
+    --washi-2:#1D1F23;
+    --sumi:#E4E2DD;
+    --sumi-2:#A9A7A1;
+    --sumi-3:#7C7A75;
+    --rule:#34363B;
+    --rule-2:#26282C;
+    --shu:#CE6E56;
+    --sunk:#212328;
+    --good:#7FA383;
+    --warn:#C09A5C;
+    --bad:#CE8570;
+    --lift:26%;
+    --check:#16171A;
+    --ph-kiso:#7FA0BC;
+    --ph-riron:#C3A070;
+    --ph-muki:#94A87A;
+    --ph-yuki:#C0866A;
+    --ph-kobun:#A2B27C;
+    --ph-kyote:#A0A2A8;
+    --ph-ensyu:#8093B5;
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --ground:#11141C;
-  --surface:#181C26;
-  --sunk:#1F2431;
-  --ink:#E5E8F0;
-  --ink-2:#B7BECD;
-  --ink-3:#98A0B2;
-  --rule:#333A4A;
-  --rule-soft:#262C39;
-  --good:#5FBE90;
-  --warn:#D9A44A;
-  --bad:#D98187;
-  --lift:34%;
-  --tint:20%;
-  --tint-strong:34%;
-  --check:#11141C;
-  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.28);
+  --washi:#16171A;
+  --washi-2:#1D1F23;
+  --sumi:#E4E2DD;
+  --sumi-2:#A9A7A1;
+  --sumi-3:#7C7A75;
+  --rule:#34363B;
+  --rule-2:#26282C;
+  --shu:#CE6E56;
+  --sunk:#212328;
+  --good:#7FA383;
+  --warn:#C09A5C;
+  --bad:#CE8570;
+  --lift:26%;
+  --check:#16171A;
+  --ph-kiso:#7FA0BC;
+  --ph-riron:#C3A070;
+  --ph-muki:#94A87A;
+  --ph-yuki:#C0866A;
+  --ph-kobun:#A2B27C;
+  --ph-kyote:#A0A2A8;
+  --ph-ensyu:#8093B5;
   color-scheme:dark;
 }
 
 *{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
 body{
-  margin:0;
-  background:var(--ground);
-  color:var(--ink);
-  font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
-  font-size:16px;
-  line-height:1.7;
-  -webkit-text-size-adjust:100%;
+  margin:0;background:var(--washi);color:var(--sumi);
+  font-family:var(--san);font-size:16px;line-height:1.85;
+  font-feature-settings:"palt" 1;
 }
-.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+.ser{font-family:var(--ser)}
+.num{font-family:var(--ser);font-variant-numeric:tabular-nums;letter-spacing:.02em}
 
-/* ---------- shell ---------- */
-.wrap{max-width:1180px;margin:0 auto;padding:0 16px 96px}
+/* ---------------- 骨格 ---------------- */
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px 132px}
 
-header.top{
-  position:sticky;top:0;z-index:30;
-  background:color-mix(in oklab, var(--ground) 88%, transparent);
-  backdrop-filter:saturate(1.4) blur(10px);
-  border-bottom:1px solid var(--rule-soft);
+header.top{position:sticky;top:0;z-index:30;background:var(--washi)}
+.top-in{
+  max-width:1120px;margin:0 auto;padding:14px 20px 12px;
+  display:flex;align-items:center;gap:12px;
 }
-.top-in{max-width:1180px;margin:0 auto;padding:9px 14px 0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.brand{font-weight:700;font-size:14px;letter-spacing:.04em}
-.brand span{color:var(--ink-3);font-weight:500}
-.sync{margin-left:auto;font-size:10.5px;letter-spacing:.06em;color:var(--ink-3);display:flex;align-items:center;gap:5px;
-  appearance:none;background:none;border:0;font-family:inherit;cursor:pointer;padding:2px 0}
-.sync:hover{color:var(--ink-2)}
-.sync:focus-visible{outline:2px solid var(--ph-kiso);outline-offset:2px;border-radius:4px}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--ink-3)}
+.brand{
+  font-family:var(--ser);font-size:15px;font-weight:500;letter-spacing:.18em;
+  margin:0;color:var(--sumi-2);
+}
+.icon-btn{
+  margin-left:auto;appearance:none;border:0;background:none;cursor:pointer;
+  color:var(--sumi-3);font-size:20px;line-height:1;padding:4px 8px;border-radius:4px;
+}
+.icon-btn:hover{color:var(--sumi)}
+.icon-btn:focus-visible{outline:1px solid var(--sumi-3);outline-offset:2px}
+
+.menu{
+  position:absolute;right:20px;top:52px;z-index:40;min-width:190px;
+  background:var(--washi-2);border:1px solid var(--rule);border-radius:2px;
+  padding:6px 0;box-shadow:0 8px 28px rgba(0,0,0,.10);
+}
+.menu button{
+  display:block;width:100%;text-align:left;appearance:none;border:0;background:none;
+  font-family:inherit;font-size:14px;color:var(--sumi-2);padding:9px 18px;cursor:pointer;
+}
+.menu button:hover{background:var(--sunk);color:var(--sumi)}
+.menu-foot{
+  border-top:1px solid var(--rule-2);margin-top:6px;padding:9px 18px 3px;
+  font-size:11.5px;color:var(--sumi-3);display:flex;align-items:center;gap:7px;
+}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--sumi-3);flex:none}
 .dot.on{background:var(--good)}
-.dot.off{background:var(--warn)}
+.dot.off{background:var(--bad)}
 
-nav.tabs{max-width:1180px;margin:0 auto;padding:4px 14px 0;display:flex;gap:2px;
-  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-nav.tabs::-webkit-scrollbar{display:none}
-nav.tabs button{flex:none;white-space:nowrap}
-nav.tabs button{
-  appearance:none;border:0;background:none;cursor:pointer;
-  font-family:inherit;font-size:13px;font-weight:500;color:var(--ink-3);
-  padding:7px 11px 9px;border-bottom:2px solid transparent;
+/* 下の帯（スマホ）／上の並び（PC） */
+.nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:35;
+  display:flex;background:var(--washi);border-top:1px solid var(--rule);
+  padding-bottom:env(safe-area-inset-bottom);
 }
-nav.tabs button:hover{color:var(--ink-2)}
-nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
-nav.tabs button:focus-visible{outline:2px solid var(--ph-kiso);outline-offset:-2px;border-radius:4px}
+.nav button{
+  flex:1;appearance:none;border:0;background:none;cursor:pointer;
+  font-family:var(--ser);font-size:13.5px;letter-spacing:.12em;
+  color:var(--sumi-3);padding:14px 0 13px;position:relative;
+}
+.nav button[aria-selected="true"]{color:var(--sumi)}
+.nav button[aria-selected="true"]::after{
+  content:"";position:absolute;left:50%;transform:translateX(-50%);
+  bottom:7px;width:14px;height:1px;background:var(--sumi);
+}
+.nav button:focus-visible{outline:1px solid var(--sumi-3);outline-offset:-4px}
 
-/* ---------- generic ---------- */
-.card{
-  background:var(--surface);border:1px solid var(--rule-soft);border-radius:10px;
-  box-shadow:var(--shadow);padding:15px 16px 16px;margin-top:12px;
+@media (min-width:800px){
+  .nav{position:sticky;top:0;bottom:auto;border-top:0;border-bottom:1px solid var(--rule);
+    max-width:1120px;margin:0 auto;padding:0 20px;justify-content:flex-start;gap:4px}
+  .nav button{flex:0 0 auto;padding:10px 20px 12px}
+  .nav button[aria-selected="true"]::after{bottom:4px;width:18px}
+  header.top{position:static}
+  .wrap{padding-bottom:64px}
 }
-.eyebrow{
-  font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:500;margin:0 0 8px;
-}
-h2{font-size:17px;font-weight:700;margin:0 0 4px;letter-spacing:.01em;text-wrap:balance}
-h3{font-size:14px;font-weight:700;margin:0 0 8px;letter-spacing:.02em}
-p{margin:0 0 10px}
-.muted{color:var(--ink-3);font-size:13.5px;line-height:1.65}
-.note{color:var(--ink-2);font-size:13.5px;line-height:1.7;margin:0 0 10px}
-.hair{height:1px;background:var(--rule-soft);border:0;margin:14px 0}
 
+/* ---------------- 節（カードではなく余白で分ける） ---------------- */
+.sec{margin:34px 0 0}
+.sec:first-child{margin-top:22px}
+.sec > .hd{
+  font-family:var(--ser);font-size:12px;letter-spacing:.24em;color:var(--sumi-3);
+  margin:0 0 12px;font-weight:500;
+}
+.sec > .hd b{font-family:var(--ser);font-size:15px;color:var(--sumi);letter-spacing:.04em;font-weight:500}
+.rule{height:1px;background:var(--rule-2);border:0;margin:0}
+
+h2{font-family:var(--ser);font-size:20px;font-weight:500;margin:0;letter-spacing:.04em;
+  line-height:1.5;text-wrap:balance}
+p{margin:0 0 12px}
+.note{color:var(--sumi-2);font-size:14px;line-height:1.85;margin:0 0 12px}
+.muted{color:var(--sumi-3);font-size:13px;line-height:1.7}
+
+/* ---------------- 部品 ---------------- */
 button.btn{
-  appearance:none;font-family:inherit;font-size:12.5px;font-weight:500;
-  background:var(--surface);color:var(--ink-2);
-  border:1px solid var(--rule);border-radius:7px;padding:5px 11px;cursor:pointer;
+  appearance:none;font-family:var(--san);font-size:13px;
+  background:none;color:var(--sumi-2);border:1px solid var(--rule);
+  border-radius:2px;padding:6px 13px;cursor:pointer;line-height:1.5;
 }
-button.btn:hover{background:var(--sunk);color:var(--ink)}
-button.btn:focus-visible{outline:2px solid var(--ph-kiso);outline-offset:1px}
-button.btn.primary{background:var(--ink);color:var(--surface);border-color:var(--ink)}
-button.btn.primary:hover{opacity:.88;background:var(--ink);color:var(--surface)}
-button.btn.danger{color:var(--bad);border-color:color-mix(in oklab,var(--bad) 40%,var(--rule))}
+button.btn:hover{border-color:var(--sumi-3);color:var(--sumi)}
+button.btn:focus-visible{outline:1px solid var(--sumi-3);outline-offset:1px}
+button.btn.primary{background:var(--sumi);color:var(--washi);border-color:var(--sumi)}
+button.btn.primary:hover{opacity:.85;color:var(--washi)}
+button.btn.danger{color:var(--bad);border-color:color-mix(in oklab,var(--bad) 35%,var(--rule))}
+.linkbtn{
+  appearance:none;border:0;background:none;cursor:pointer;font-family:inherit;
+  font-size:12px;color:var(--sumi-3);padding:2px 4px;white-space:nowrap;
+}
+.linkbtn:hover{color:var(--sumi-2);text-decoration:underline}
 
 input[type=text],input[type=number],input[type=date],textarea,select{
-  font-family:inherit;font-size:14px;color:var(--ink);
-  background:var(--surface);border:1px solid var(--rule);border-radius:7px;
-  padding:7px 9px;width:100%;
+  font-family:inherit;font-size:15px;color:var(--sumi);
+  background:var(--washi-2);border:1px solid var(--rule);border-radius:2px;
+  padding:8px 10px;width:100%;
 }
-input:focus,textarea:focus,select:focus{outline:2px solid color-mix(in oklab,var(--ph-kiso) 70%,var(--rule));outline-offset:-1px;border-color:transparent}
-textarea{resize:vertical;line-height:1.7}
-label.fld{display:block;font-size:11px;letter-spacing:.08em;color:var(--ink-3);margin-bottom:4px;font-weight:500}
-
-/* ---------- phase badge ---------- */
-.ph{
-  display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.05em;
-  padding:2px 9px;border-radius:999px;
-  color:color-mix(in oklab, var(--c), white var(--lift));
-  background:color-mix(in oklab, var(--c) var(--tint), var(--surface));
-  border:1px solid color-mix(in oklab, var(--c) var(--tint-strong), var(--surface));
-}
-
-/* ---------- week header ---------- */
-.wk-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
-.wk-no{
-  font-family:"IBM Plex Mono",monospace;font-size:30px;font-weight:600;line-height:1;
-  color:color-mix(in oklab, var(--c), white var(--lift));letter-spacing:-.02em;padding-top:2px;
-}
-.wk-line{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:1px}
-.meter-row{display:flex;align-items:baseline;gap:8px;margin-bottom:5px;flex-wrap:wrap}
-.wk-meta{flex:1;min-width:200px}
-.wk-dates{font-size:12.5px;color:var(--ink-3);letter-spacing:.04em}
-.wk-nav{display:flex;gap:6px;align-items:center;margin-left:auto}
-
-/* ---------- meter ---------- */
-.meter{display:flex;gap:5px;margin:2px 0 0}
-.meter i{
-  flex:1;height:9px;border-radius:2px;
-  background:var(--sunk);border:1px solid var(--rule-soft);
-}
-.meter i.on{background:color-mix(in oklab, var(--c) 78%, var(--surface));border-color:transparent}
-
-/* ---------- day rows ---------- */
-.days{display:flex;flex-direction:column;border-top:1px solid var(--rule-soft)}
-.day{
-  display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;
-  padding:11px 2px;border-bottom:1px solid var(--rule-soft);
-}
-.day.today{background:color-mix(in oklab, var(--c) 7%, var(--surface));
-  box-shadow:inset 3px 0 0 color-mix(in oklab, var(--c), white var(--lift));border-radius:3px}
-.day.sun .dw{color:var(--bad)}
-.day.today .dw{color:var(--ink-2)}
-.dw{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3);line-height:1.35}
-.dw b{display:block;font-size:14px;font-weight:600;color:var(--ink-2);margin-bottom:1px}
-.dtask{font-size:15px;line-height:1.55;cursor:pointer}
-.day.done .dtask{color:var(--ink-3);text-decoration:line-through;text-decoration-thickness:1px}
-.chk{
-  appearance:none;width:22px;height:22px;flex:none;cursor:pointer;
-  border:1.5px solid var(--rule);border-radius:5px;background:var(--surface);
-  display:grid;place-content:center;
-}
-.chk:checked{background:color-mix(in oklab, var(--c), white var(--lift));border-color:transparent}
-.chk:checked::after{content:"";width:11px;height:6px;border-left:2px solid var(--check);border-bottom:2px solid var(--check);transform:rotate(-45deg) translate(1px,-2px)}
-.chk:focus-visible{outline:2px solid var(--ph-kiso);outline-offset:2px}
-
-/* ---------- conditions ---------- */
-.conds{display:flex;flex-direction:column;gap:2px}
-.cond{display:flex;gap:10px;align-items:flex-start;padding:7px 0;cursor:pointer;font-size:14.5px;line-height:1.5}
-.cond.done span{color:var(--ink-3);text-decoration:line-through}
-
-/* ---------- verdict ---------- */
-.verdict{
-  margin-top:10px;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.6;
-  border:1px solid var(--rule);background:var(--sunk);color:var(--ink-2);
-}
-.verdict.pass{border-color:color-mix(in oklab,var(--good) 45%,var(--rule));background:color-mix(in oklab,var(--good) 10%,var(--surface));color:var(--good)}
-.verdict.fail{border-color:color-mix(in oklab,var(--bad) 45%,var(--rule));background:color-mix(in oklab,var(--bad) 10%,var(--surface));color:var(--bad)}
-
-/* ---------- phase band ---------- */
-.band{display:flex;height:34px;border-radius:7px;overflow:hidden;border:1px solid var(--rule-soft);margin-top:4px}
-.band div{display:grid;place-content:center;font-size:10.5px;letter-spacing:.03em;font-weight:500;
-  color:color-mix(in oklab, var(--c), white var(--lift));
-  background:color-mix(in oklab, var(--c) var(--tint), var(--surface));
-  border-right:1px solid var(--rule-soft);text-align:center;padding:0 4px;position:relative}
-.band div:last-child{border-right:0}
-.band .marker{position:absolute;top:0;bottom:0;width:2px;background:var(--ink)}
-
-/* ---------- stats ---------- */
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:2px}
-.stat{background:var(--sunk);border-radius:8px;padding:10px 12px}
-.stat b{display:block;font-family:"IBM Plex Mono",monospace;font-size:23px;font-weight:600;line-height:1.15;letter-spacing:-.02em}
-.stat span{font-size:10.5px;letter-spacing:.1em;color:var(--ink-3)}
-
-/* ---------- errors ---------- */
-.err{border-bottom:1px solid var(--rule-soft);padding:11px 0;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
-.err.cleared{opacity:.45}
-.err-main{flex:1;min-width:180px}
-.err-ref{font-weight:700;font-size:14px}
-.err-sub{font-size:11.5px;color:var(--ink-3);letter-spacing:.03em}
-.cause{
-  font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;white-space:nowrap;
-  color:color-mix(in oklab, var(--c), white var(--lift));
-  background:color-mix(in oklab, var(--c) var(--tint), var(--surface));
-  border:1px solid color-mix(in oklab, var(--c) var(--tint-strong), var(--surface));
-}
-.steps{display:flex;gap:5px;align-items:center}
-.step{
-  width:30px;height:30px;border-radius:6px;border:1px solid var(--rule);background:var(--surface);
-  font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-3);cursor:pointer;
-  display:grid;place-content:center;padding:0;
-}
-.step.ok{background:color-mix(in oklab,var(--good) 16%,var(--surface));border-color:color-mix(in oklab,var(--good) 40%,var(--rule));color:var(--good);font-weight:600}
-.step.due{border-color:var(--warn);color:var(--warn);box-shadow:0 0 0 2px color-mix(in oklab,var(--warn) 22%,transparent)}
-
-.bars{display:flex;flex-direction:column;gap:9px;margin-top:4px}
-.bar{display:grid;grid-template-columns:78px 1fr 34px;align-items:center;gap:9px;font-size:12.5px}
-.bar .t{height:16px;border-radius:3px;background:color-mix(in oklab,var(--c) 80%,var(--surface));min-width:2px;transition:width .3s}
-.bar .track2{background:var(--sunk);border-radius:3px;overflow:hidden}
-.bar .v{font-family:"IBM Plex Mono",monospace;text-align:right;color:var(--ink-2)}
-
-/* ---------- tables ---------- */
-.tbl-wrap{overflow-x:auto;margin:6px 0 2px}
-table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:420px}
-th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
-th{font-size:10.5px;letter-spacing:.1em;color:var(--ink-3);font-weight:500;white-space:nowrap}
-td.num{font-family:"IBM Plex Mono",monospace;white-space:nowrap}
-
-ul.tight{margin:0 0 10px;padding-left:1.15em}
-ul.tight li{margin-bottom:5px;font-size:14.5px}
-
-.note-area{background-image:radial-gradient(var(--rule-soft) 1px, transparent 1px);background-size:14px 14px}
-
-.due-banner{
-  border:1px solid color-mix(in oklab,var(--warn) 45%,var(--rule));
-  background:color-mix(in oklab,var(--warn) 9%,var(--surface));
-  border-radius:9px;padding:11px 13px;margin-top:14px;
-}
-.due-banner h3{color:var(--warn);margin-bottom:6px}
-
-.row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
-.row>*{flex:1;min-width:110px}
+input:focus,textarea:focus,select:focus{outline:1px solid var(--sumi-3);outline-offset:-1px;border-color:var(--sumi-3)}
+textarea{resize:vertical;line-height:1.85}
+label.fld{display:block;font-size:11.5px;letter-spacing:.1em;color:var(--sumi-3);margin-bottom:5px}
+.row{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap}
+.row > *{flex:1;min-width:110px}
 .row .shrink{flex:0 0 auto;min-width:0}
 
-.seg{display:flex;gap:0;border:1px solid var(--rule);border-radius:7px;overflow:hidden}
-.seg button{flex:1;appearance:none;border:0;background:var(--surface);font-family:inherit;font-size:12.5px;
-  padding:7px 4px;cursor:pointer;color:var(--ink-3);border-right:1px solid var(--rule)}
-.seg button:last-child{border-right:0}
-.seg button[aria-pressed="true"]{background:color-mix(in oklab,var(--c) var(--tint-strong),var(--surface));
-  color:color-mix(in oklab, var(--c), white var(--lift));font-weight:700}
+/* 印（チェック） */
+.chk{
+  appearance:none;width:21px;height:21px;flex:none;cursor:pointer;margin:1px 0 0;
+  border:1px solid var(--rule);border-radius:1px;background:var(--washi-2);
+  display:grid;place-content:center;transition:background .12s,border-color .12s;
+}
+.chk:hover{border-color:var(--sumi-3)}
+.chk:checked{background:var(--sumi);border-color:var(--sumi)}
+.chk:checked::after{content:"";width:10px;height:5px;
+  border-left:1.5px solid var(--check);border-bottom:1.5px solid var(--check);
+  transform:rotate(-45deg) translate(1px,-2px)}
+.chk:focus-visible{outline:1px solid var(--sumi-3);outline-offset:2px}
+.chk-sm{width:18px;height:18px}
+.chk-sm:checked::after{width:9px;height:4px}
 
+.ph{
+  font-family:var(--ser);font-size:11.5px;letter-spacing:.1em;
+  color:color-mix(in oklab, var(--c), white var(--lift));
+}
+.tag{font-size:11px;color:var(--sumi-3);letter-spacing:.06em;white-space:nowrap}
+
+/* ---------------- 今日 ---------------- */
+.t-date{display:flex;align-items:baseline;gap:12px;margin:6px 0 2px}
+.t-md{font-family:var(--ser);font-size:44px;font-weight:500;line-height:1;letter-spacing:.01em}
+.t-dow{font-family:var(--ser);font-size:17px;color:var(--sumi-2)}
+.t-seal{
+  margin-left:auto;width:30px;height:30px;border:1px solid var(--shu);color:var(--shu);
+  border-radius:2px;display:grid;place-content:center;font-family:var(--ser);
+  font-size:12px;letter-spacing:0;line-height:1;flex:none;
+}
+.t-where{font-size:13px;color:var(--sumi-3);letter-spacing:.04em;margin:0 0 4px}
+.t-title{font-family:var(--ser);font-size:16px;color:var(--sumi-2);margin:0 0 2px;letter-spacing:.04em}
+
+.todo{border-top:1px solid var(--rule-2)}
+.todo-row{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:start;
+  padding:15px 2px;border-bottom:1px solid var(--rule-2);
+}
+.todo-text{font-size:16px;line-height:1.7;cursor:pointer}
+.todo-row.done .todo-text{color:var(--sumi-3);text-decoration:line-through;
+  text-decoration-thickness:1px;text-decoration-color:var(--rule)}
+.todo-row .linkbtn{opacity:0;transition:opacity .15s}
+.todo-row:hover .linkbtn,.todo-row:focus-within .linkbtn{opacity:1}
+@media (hover:none){.todo-row .linkbtn{opacity:1}}
+.todo-row.skipped .todo-text{color:var(--sumi-3);opacity:.62}
+.skip-mark{width:21px;text-align:center;color:var(--sumi-3);line-height:1.7}
+.todo-row.extra .todo-text{color:var(--sumi-2)}
+
+.count{font-family:var(--ser);font-size:13px;color:var(--sumi-3);letter-spacing:.06em}
+.count b{font-size:17px;color:var(--sumi);font-weight:500}
+
+/* 静かな進み（棒ではなく点） */
+.beads{display:flex;gap:5px;align-items:center}
+.beads i{width:6px;height:6px;border-radius:50%;background:var(--rule);flex:none}
+.beads i.on{background:var(--sumi-2)}
+.beads i.cur{box-shadow:0 0 0 2px color-mix(in oklab,var(--shu) 40%,transparent)}
+
+/* 呼びかけ（解き直し・やり残し）——枠ではなく左の細い罫 */
+.call{border-left:2px solid var(--c,var(--rule));padding-left:16px}
+.call.warn{--c:color-mix(in oklab,var(--warn) 60%,var(--rule))}
+.call.bad{--c:color-mix(in oklab,var(--bad) 55%,var(--rule))}
+.call-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
+  padding:9px 0;border-bottom:1px solid var(--rule-2)}
+.call-row:last-child{border-bottom:0}
+.call-row .ref{font-family:var(--ser);font-size:15px}
+.lo-day{font-family:var(--ser);font-size:11.5px;color:var(--sumi-3);letter-spacing:.06em;
+  flex:0 0 auto;min-width:112px}
+.lo-text{flex:1;min-width:150px;font-size:14.5px;line-height:1.6}
+.grow{flex:1;min-width:4px}
+.acts{display:flex;gap:8px;align-items:center;flex:0 0 auto;white-space:nowrap}
+
+/* ---------------- 週 ---------------- */
+.cols{display:grid;grid-template-columns:1fr;gap:0}
+.col-main,.col-side{min-width:0}
+@media (min-width:940px){
+  .cols{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:44px;align-items:start}
+}
+
+.wk-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+.wk-no{font-family:var(--ser);font-size:15px;letter-spacing:.1em;color:var(--sumi-3)}
+.wk-nav{display:flex;gap:6px;align-items:center;margin-left:auto}
+.wk-sel{width:auto;min-width:150px;font-size:13px;padding:6px 9px}
+.wk-dates{font-family:var(--ser);font-size:13px;color:var(--sumi-3);letter-spacing:.06em}
+.wnow{font-family:var(--ser);font-size:11px;color:var(--shu);border:1px solid var(--shu);
+  border-radius:1px;padding:0 5px;letter-spacing:.08em}
+
+details.fold{border-top:1px solid var(--rule-2);margin-top:14px}
+details.fold > summary{
+  list-style:none;cursor:pointer;padding:10px 0;font-size:13px;color:var(--sumi-3);
+  display:flex;align-items:center;gap:8px;
+}
+details.fold > summary::-webkit-details-marker{display:none}
+details.fold > summary::before{content:"＋";font-size:11px;color:var(--sumi-3)}
+details.fold[open] > summary::before{content:"−"}
+details.fold > summary:hover{color:var(--sumi-2)}
+details.fold .body{padding:0 0 14px}
+
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:2px;overflow:hidden}
+.seg button{appearance:none;border:0;background:none;font-family:var(--ser);font-size:12.5px;
+  letter-spacing:.08em;padding:7px 15px;cursor:pointer;color:var(--sumi-3);
+  border-right:1px solid var(--rule)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--sumi);color:var(--washi)}
+.bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+
+/* 日ごと */
+.d2{border-top:1px solid var(--rule-2);padding:12px 0 10px}
+.d2:last-of-type{border-bottom:1px solid var(--rule-2)}
+.d2-head{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
+.d2-dow{font-family:var(--ser);font-size:13px;color:var(--sumi-3);letter-spacing:.08em}
+.d2-dow b{font-size:16px;color:var(--sumi);font-weight:500;margin-right:5px}
+.d2.today .d2-dow b{color:var(--shu)}
+.d2.sun .d2-dow b{color:var(--bad)}
+.d2-count{margin-left:auto;font-family:var(--ser);font-size:12px;color:var(--sumi-3)}
+.d2 .todo-row{padding:8px 2px 8px 0;border-bottom:0;grid-template-columns:auto minmax(0,1fr)}
+.d2 .todo-text{font-size:15px}
+
+/* 週まとめ */
+.grp{margin-top:22px}
+.grp-head{display:flex;align-items:baseline;gap:10px;padding-bottom:6px;
+  border-bottom:1px solid color-mix(in oklab,var(--c) 30%,var(--rule-2))}
+.grp-name{font-family:var(--ser);font-size:13px;letter-spacing:.12em;
+  color:color-mix(in oklab,var(--c),white var(--lift))}
+.grp-count{margin-left:auto;font-family:var(--ser);font-size:12px;color:var(--sumi-3)}
+.grp-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:start;
+  padding:9px 0;border-bottom:1px solid var(--rule-2)}
+.grp-item:last-child{border-bottom:0}
+.gi-text{font-size:15px;line-height:1.65;cursor:pointer}
+.grp-item.done .gi-text{color:var(--sumi-3);text-decoration:line-through;
+  text-decoration-thickness:1px;text-decoration-color:var(--rule)}
+.grp-item.skipped .gi-text{color:var(--sumi-3);opacity:.62}
+.gi-day{font-family:var(--ser);font-size:11.5px;color:var(--sumi-3);padding-top:3px}
+
+/* 見開き */
+.spread-wrap{overflow-x:auto;margin:0 -20px;padding:0 20px;scrollbar-width:thin}
+.spread{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(178px,1fr);
+  gap:0;min-width:100%;border-top:1px solid var(--rule-2)}
+.sp-col{border-right:1px solid var(--rule-2);padding:12px 12px 16px}
+.sp-col:last-child{border-right:0}
+.sp-col.today{background:color-mix(in oklab,var(--shu) 4%,transparent)}
+.sp-head{display:flex;align-items:baseline;gap:7px;margin-bottom:9px;
+  padding-bottom:7px;border-bottom:1px solid var(--rule-2)}
+.sp-dow{font-family:var(--ser);font-size:15px;color:var(--sumi)}
+.sp-col.today .sp-dow{color:var(--shu)}
+.sp-col.sun .sp-dow{color:var(--bad)}
+.sp-md{font-family:var(--ser);font-size:11.5px;color:var(--sumi-3)}
+.sp-count{margin-left:auto;font-family:var(--ser);font-size:11px;color:var(--sumi-3)}
+.sp-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;
+  align-items:start;padding:6px 0}
+.sp-text{font-size:13.5px;line-height:1.6;cursor:pointer;word-break:break-word}
+.sp-item.done .sp-text{color:var(--sumi-3);text-decoration:line-through;
+  text-decoration-thickness:1px;text-decoration-color:var(--rule)}
+.sp-item.skipped .sp-text{color:var(--sumi-3);opacity:.62}
+
+/* 自分で足した分 */
+.xrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:11px;
+  align-items:start;padding:8px 0;border-bottom:1px solid var(--rule-2)}
+.xtext{font-size:14.5px;line-height:1.65;cursor:pointer;color:var(--sumi-2)}
+.xrow.done .xtext{color:var(--sumi-3);text-decoration:line-through}
+.xdel{appearance:none;border:0;background:none;cursor:pointer;color:var(--sumi-3);
+  font-size:15px;line-height:1;padding:2px 3px}
+.xdel:hover{color:var(--bad)}
+.addrow-in{flex:3;min-width:150px}
+
+/* 判定 */
+.verdict{font-size:14px;line-height:1.75;color:var(--sumi-2);
+  border-left:2px solid var(--rule);padding:2px 0 2px 14px;margin-top:12px}
+.verdict.pass{border-left-color:var(--good);color:var(--good)}
+.verdict.fail{border-left-color:var(--bad);color:var(--bad)}
+.scorerow{display:flex;align-items:center;gap:9px}
+.scorerow input{width:76px;text-align:center}
+.scorerow span{flex:none;font-size:13px}
+
+/* ---------------- 全体（一覧・帯） ---------------- */
+.stats{display:flex;flex-wrap:wrap;gap:34px;margin-bottom:6px}
+.stats div b{display:block;font-family:var(--ser);font-size:27px;font-weight:500;
+  line-height:1.2;letter-spacing:.01em}
+.stats div span{font-size:11.5px;letter-spacing:.12em;color:var(--sumi-3)}
+
+.wrow{
+  display:grid;grid-template-columns:30px minmax(0,1fr) auto auto;gap:14px;align-items:center;
+  width:100%;text-align:left;appearance:none;background:none;font-family:inherit;
+  color:var(--sumi);cursor:pointer;border:0;border-bottom:1px solid var(--rule-2);
+  border-left:2px solid color-mix(in oklab,var(--c),white var(--lift));
+  padding:12px 4px 12px 14px;
+}
+.wrow:hover{background:color-mix(in oklab,var(--c) 4%,transparent)}
+.wrow:focus-visible{outline:1px solid var(--sumi-3);outline-offset:-2px}
+.wrow.now{background:color-mix(in oklab,var(--shu) 4%,transparent)}
+.wrow.behind .wnum{color:var(--bad)}
+.wnum{font-family:var(--ser);font-size:15px;color:var(--sumi-3)}
+.wmain{min-width:0;display:flex;flex-direction:column;gap:1px}
+.wtitle{font-size:15px;line-height:1.5}
+.wsub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:var(--sumi-3)}
+.wscore{font-family:var(--ser);font-size:12.5px;color:var(--sumi-3);min-width:40px;text-align:right}
+.wscore.pass{color:var(--good)}
+.wscore.fail{color:var(--bad)}
+.wdetail{border-bottom:1px solid var(--rule-2);
+  border-left:2px solid color-mix(in oklab,var(--c),white var(--lift));
+  padding:6px 4px 18px 14px}
+.dlist{list-style:none;margin:0;padding:0}
+.dlist li{display:grid;grid-template-columns:66px minmax(0,1fr);gap:12px;
+  padding:6px 0;font-size:14.5px;line-height:1.6;border-bottom:1px solid var(--rule-2)}
+.dlist li:last-child{border-bottom:0}
+.dlist li.done .dl-task{color:var(--sumi-3);text-decoration:line-through}
+.dl-day{font-family:var(--ser);font-size:11.5px;color:var(--sumi-3);padding-top:3px}
+.clist{margin:0;padding-left:1.2em;font-size:14px;color:var(--sumi-2)}
+.clist li{margin-bottom:3px}
+.clist li.done{color:var(--sumi-3);text-decoration:line-through}
+
+/* 帯（三相） */
+.band{display:flex;height:2px;margin:16px 0 6px}
+.band div{background:color-mix(in oklab,var(--c) 60%,var(--rule))}
+.band-lab{display:flex;font-size:11px;color:var(--sumi-3);letter-spacing:.06em}
+.band-lab div{text-align:left}
+
+/* 工程表（ガント） */
+.gantt{overflow-x:auto;margin:0 -20px;padding:0 20px}
+.gantt-in{min-width:640px}
+.g-row{display:grid;grid-template-columns:104px minmax(0,1fr);gap:12px;align-items:center;
+  padding:5px 0}
+.g-name{font-family:var(--ser);font-size:11.5px;color:var(--sumi-2);letter-spacing:.02em;
+  text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-track{position:relative;height:19px}
+.g-bar{position:absolute;top:4px;height:11px;border-radius:1px;
+  background:color-mix(in oklab,var(--c) 34%,var(--washi));
+  border:1px solid color-mix(in oklab,var(--c) 55%,var(--washi));
+  display:flex;align-items:center;overflow:hidden}
+.g-fill{height:100%;background:color-mix(in oklab,var(--c) 72%,var(--washi))}
+.g-scale{display:grid;grid-template-columns:104px minmax(0,1fr);gap:12px;
+  font-size:10.5px;color:var(--sumi-3);margin-bottom:2px}
+.g-months{position:relative;height:16px}
+.g-mon{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;
+  font-family:var(--ser)}
+.g-now{position:absolute;top:0;bottom:0;width:1px;background:var(--shu);z-index:2;pointer-events:none}
+.g-now::after{content:"今日";position:absolute;top:-15px;left:-13px;font-size:10px;
+  color:var(--shu);font-family:var(--ser);white-space:nowrap}
+
+/* ---------------- 誤答 ---------------- */
+.cause{font-family:var(--ser);font-size:11.5px;letter-spacing:.06em;white-space:nowrap;
+  color:color-mix(in oklab,var(--c),white var(--lift))}
+.bars{display:flex;flex-direction:column;gap:11px}
+.bar2{display:grid;grid-template-columns:96px minmax(0,1fr) 30px;align-items:center;
+  gap:12px;font-size:13.5px}
+.bar2 .t2{height:2px;background:color-mix(in oklab,var(--c) 70%,var(--rule));min-width:1px}
+.bar2 .tr2{background:var(--rule-2);height:2px}
+.bar2 .v2{font-family:var(--ser);text-align:right;color:var(--sumi-2)}
+.err{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 14px;align-items:center;
+  padding:13px 0;border-bottom:1px solid var(--rule-2)}
+.err.cleared{opacity:.42}
+.err-ref{font-family:var(--ser);font-size:15.5px}
+.err-sub{font-size:11.5px;color:var(--sumi-3);letter-spacing:.04em}
+.steps{display:flex;gap:6px;align-items:center}
+.step{width:32px;height:28px;border:1px solid var(--rule);background:none;border-radius:1px;
+  font-family:var(--ser);font-size:10.5px;color:var(--sumi-3);cursor:pointer;
+  display:grid;place-content:center;padding:0}
+.step.ok{background:var(--sumi);border-color:var(--sumi);color:var(--washi)}
+.step.due{border-color:var(--shu);color:var(--shu)}
+
+/* ---------------- FAB と下敷き ---------------- */
+.fab{
+  position:fixed;right:20px;bottom:calc(64px + env(safe-area-inset-bottom));z-index:36;
+  appearance:none;border:1px solid var(--sumi);background:var(--washi);color:var(--sumi);
+  font-family:var(--ser);font-size:13px;letter-spacing:.1em;
+  padding:11px 17px;border-radius:2px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.10);
+}
+.fab:hover{background:var(--sumi);color:var(--washi)}
+.fab:focus-visible{outline:1px solid var(--sumi-3);outline-offset:2px}
+@media (min-width:800px){.fab{bottom:24px}}
+
+.sheet{position:fixed;inset:0;z-index:60;background:rgba(20,20,20,.34);
+  display:flex;align-items:flex-end;justify-content:center}
+.sheet-in{background:var(--washi);width:100%;max-width:480px;
+  border-radius:4px 4px 0 0;padding:24px 22px calc(26px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--rule)}
+@media (min-width:640px){
+  .sheet{align-items:center}
+  .sheet-in{border-radius:3px;padding-bottom:26px;border:1px solid var(--rule)}
+}
+
+/* ---------------- ログイン ---------------- */
+body.gated{overflow:hidden}
+.gate{position:fixed;inset:0;z-index:100;display:grid;place-items:center;
+  padding:24px;background:var(--washi)}
+.gate[hidden],.gate.hidden{display:none}
+.gate-card{width:100%;max-width:360px;text-align:center}
+.gate-mark{width:52px;height:52px;margin:0 auto 22px;border:1px solid var(--sumi);
+  color:var(--sumi);display:grid;place-content:center;font-family:var(--ser);
+  font-size:26px;border-radius:2px}
+.gate-mark.deny{border-color:var(--bad);color:var(--bad)}
+.gate-card h1{font-family:var(--ser);font-size:18px;font-weight:500;margin:0 0 12px;
+  letter-spacing:.08em}
+.gate-msg{font-size:14px;color:var(--sumi-2);margin:0 0 8px;line-height:1.8}
+.gate-sub{font-size:12.5px;color:var(--sumi-3);margin:0;line-height:1.7}
+.gate-sub code{font-family:ui-monospace,monospace;font-size:12px}
+.gate-actions{display:flex;flex-direction:column;gap:9px;margin-top:26px}
+.gate-actions .btn{padding:11px 16px;font-size:14px}
+
+/* ---------------- その他 ---------------- */
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));
+  transform:translate(-50%,10px);max-width:min(520px,calc(100vw - 32px));z-index:80;
+  background:var(--sumi);color:var(--washi);font-size:13.5px;line-height:1.6;
+  padding:11px 18px;border-radius:2px;opacity:0;pointer-events:none;
+  transition:opacity .18s,transform .18s}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (min-width:800px){.toast{bottom:24px}}
+
+.acct{border-left:2px solid var(--rule);padding-left:14px}
+.acct-label{font-size:11px;letter-spacing:.1em;color:var(--sumi-3)}
+.acct-mail{font-family:var(--ser);font-size:15px;word-break:break-all}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:400px}
+th,td{text-align:left;padding:8px 12px 8px 0;border-bottom:1px solid var(--rule-2);
+  vertical-align:top}
+th{font-size:11px;letter-spacing:.12em;color:var(--sumi-3);font-weight:400;white-space:nowrap}
+ul.tight{margin:0 0 14px;padding-left:1.2em}
+ul.tight li{margin-bottom:6px;font-size:14.5px;line-height:1.75}
+[hidden]{display:none !important}
 .hidden{display:none !important}
 
-@media (max-width:520px){
-  .brand span{display:none}
-  .wk-meta{flex-basis:100%;order:3;min-width:0}
-  .wk-nav{order:2}
-  .day{grid-template-columns:34px 1fr auto;gap:10px}
-  .dtask{font-size:13px}
-  .wk-no{font-size:28px}
-  .card{padding:14px 13px 16px}
-  .wrap{padding:0 10px 96px}
+@media (max-width:560px){
+  .wrap{padding:0 16px 132px}
+  .top-in{padding:12px 16px 10px}
+  .menu{right:16px}
+  .spread-wrap,.gantt{margin:0 -16px;padding:0 16px}
+  .t-md{font-size:38px}
+  .stats{gap:26px}
+  .addrow-in{flex-basis:100%}
+  .lo-day{min-width:100%}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
 
-/* ---------- ログイン画面 ---------- */
-body.gated{overflow:hidden}
-.gate{
-  position:fixed;inset:0;z-index:100;display:grid;place-items:center;
-  padding:24px;background:var(--ground);
-}
-.gate.hidden{display:none}
-.gate-card{
-  width:100%;max-width:400px;text-align:center;
-  background:var(--surface);border:1px solid var(--rule-soft);border-radius:14px;
-  padding:34px 26px 30px;box-shadow:var(--shadow);
-}
-.gate-mark{
-  width:60px;height:60px;margin:0 auto 18px;border-radius:15px;
-  background:var(--ink);color:var(--ground);
-  display:grid;place-content:center;font-size:31px;font-weight:700;line-height:1;
-}
-.gate-mark.deny{background:var(--bad);color:#fff}
-.gate-card h1{font-size:19px;font-weight:700;margin:0 0 10px;letter-spacing:.01em;text-wrap:balance}
-.gate-msg{font-size:13.5px;color:var(--ink-2);margin:0 0 8px;line-height:1.7}
-.gate-sub{font-size:12px;color:var(--ink-3);margin:0;line-height:1.65}
-.gate-sub code{font-family:"IBM Plex Mono",monospace;font-size:11.5px;
-  background:var(--sunk);padding:1px 5px;border-radius:4px}
-.gate-actions{display:flex;flex-direction:column;gap:8px;margin-top:22px}
-.gate-actions .btn{padding:11px 16px;font-size:14px;justify-content:center}
-
-/* ---------- アカウント ---------- */
-.acct{background:var(--sunk);border:1px solid var(--rule-soft);border-radius:9px;padding:12px 14px}
-.acct-label{font-size:10.5px;letter-spacing:.1em;color:var(--ink-3);margin-bottom:3px}
-.acct-mail{font-size:14px;font-weight:500;color:var(--ink);word-break:break-all}
-
-/* ---------- トースト ---------- */
-.toast{
-  position:fixed;left:50%;bottom:22px;transform:translate(-50%,14px);
-  max-width:min(560px,calc(100vw - 28px));z-index:80;
-  background:var(--ink);color:var(--ground);
-  font-size:13px;line-height:1.5;padding:10px 16px;border-radius:9px;
-  box-shadow:0 6px 24px rgba(0,0,0,.22);
-  opacity:0;pointer-events:none;transition:opacity .18s, transform .18s;
-}
-.toast.show{opacity:1;transform:translate(-50%,0)}
-
-/* ホーム画面から開いたときのノッチ回避 */
-@supports(padding:max(0px)){
-  header.top .top-in{padding-top:max(9px, env(safe-area-inset-top))}
-  .wrap{padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, env(safe-area-inset-right))}
-}
-
-/* ---------- 今週：PCでは2カラム ---------- */
-.cols{display:grid;grid-template-columns:1fr;gap:0}
-.col-main,.col-side{min-width:0}
-@media (min-width:920px){
-  .cols{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;align-items:start}
-  .col-side{position:sticky;top:78px}
-}
-
-/* ---------- 26週：計画表 ---------- */
-.sched-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.sched{display:flex;flex-direction:column;border-top:1px solid var(--rule-soft)}
-
-.wrow{
-  --c:var(--ph-kiso);
-  display:grid;grid-template-columns:34px minmax(0,1fr) auto auto;
-  gap:10px;align-items:center;width:100%;text-align:left;
-  appearance:none;background:none;font-family:inherit;color:var(--ink);cursor:pointer;
-  border:0;border-bottom:1px solid var(--rule-soft);
-  border-left:3px solid color-mix(in oklab, var(--c), white var(--lift));
-  padding:9px 8px 9px 11px;
-}
-.wrow:hover{background:color-mix(in oklab, var(--c) 6%, var(--surface))}
-.wrow:focus-visible{outline:2px solid var(--ph-kiso);outline-offset:-2px}
-.wrow.now{background:color-mix(in oklab, var(--c) 9%, var(--surface))}
-.wrow.open{background:color-mix(in oklab, var(--c) 7%, var(--surface));border-bottom-color:transparent}
-.wrow.behind{box-shadow:inset 0 -2px 0 color-mix(in oklab,var(--bad) 55%,transparent)}
-
-.wnum{font-size:15px;font-weight:600;color:color-mix(in oklab, var(--c), white var(--lift));line-height:1}
-.wmain{min-width:0;display:flex;flex-direction:column;gap:1px}
-.wtitle{font-size:14.5px;font-weight:500;line-height:1.4}
-.wsub{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:var(--ink-3)}
-.wph{color:color-mix(in oklab, var(--c), white var(--lift));font-weight:700}
-.wnow{background:var(--ink);color:var(--ground);border-radius:3px;padding:0 5px;font-weight:700;font-size:10.5px}
-
-.wdots{display:flex;gap:2px}
-.wdots i{width:6px;height:14px;border-radius:2px;background:var(--sunk);border:1px solid var(--rule-soft)}
-.wdots i.on{background:color-mix(in oklab, var(--c) 80%, var(--surface));border-color:transparent}
-
-.wscore{font-size:12.5px;color:var(--ink-3);min-width:38px;text-align:right}
-.wscore.pass{color:var(--good);font-weight:600}
-.wscore.fail{color:var(--bad);font-weight:600}
-
-.wdetail{
-  --c:var(--ph-kiso);
-  border-bottom:1px solid var(--rule-soft);
-  border-left:3px solid color-mix(in oklab, var(--c), white var(--lift));
-  background:color-mix(in oklab, var(--c) 4%, var(--surface));
-  padding:12px 14px 14px 14px;
-}
-.dlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
-.dlist li{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;
-  padding:5px 0;border-bottom:1px solid var(--rule-soft);font-size:14px;line-height:1.5}
-.dlist li:last-child{border-bottom:0}
-.dlist li.done .dl-task{color:var(--ink-3);text-decoration:line-through}
-.dl-day{font-size:11.5px;color:var(--ink-3);padding-top:2px}
-.clist{margin:0;padding-left:1.15em;font-size:13.5px;color:var(--ink-2)}
-.clist li{margin-bottom:3px}
-.clist li.done{color:var(--ink-3);text-decoration:line-through}
-
-@media (max-width:560px){
-  .wrow{grid-template-columns:30px minmax(0,1fr) auto;gap:8px;padding-left:9px}
-  .wrow .wscore{grid-column:3;font-size:11.5px;min-width:32px}
-  .wdots{grid-column:2;margin-top:3px}
-  .wtitle{font-size:14px}
-  .dlist li{grid-template-columns:56px minmax(0,1fr);gap:8px;font-size:13.5px}
-}
-
-.b-short{display:none}
-@media (max-width:640px){
-  .band{height:30px}
-  .band .b-long{display:none}
-  .band .b-short{display:inline}
-  .band div{font-size:10px;letter-spacing:0}
-}
-
-/* ---------- 週の総量バー ---------- */
-.totalbar{display:flex;flex-direction:column;gap:6px;margin:10px 0 2px}
-.tb-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
-.tb-label b{font-size:15px;letter-spacing:0;color:var(--ink);text-transform:none}
-.tb-track{height:7px;border-radius:4px;background:var(--sunk);overflow:hidden}
-.tb-fill{height:100%;border-radius:4px;background:color-mix(in oklab, var(--c) 82%, var(--surface));transition:width .3s}
-
-.seg-sm button{padding:5px 12px;font-size:12.5px;flex:0 0 auto}
-
-/* ---------- 週まとめ：教材ごと ---------- */
-.grp{border-left:3px solid color-mix(in oklab, var(--c), white var(--lift));
-  background:color-mix(in oklab, var(--c) 5%, var(--surface));
-  border-radius:0 8px 8px 0;padding:9px 12px 10px;margin-top:10px}
-.grp-head{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
-.grp-name{font-size:12px;font-weight:700;letter-spacing:.04em;
-  color:color-mix(in oklab, var(--c), white var(--lift))}
-.grp-count{font-size:11.5px;color:var(--ink-3);margin-left:auto}
-.grp-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;align-items:start;
-  padding:5px 0;border-bottom:1px solid color-mix(in oklab, var(--c) 12%, transparent)}
-.grp-item:last-child{border-bottom:0}
-.gi-text{font-size:14.5px;line-height:1.5;cursor:pointer}
-.grp-item.done .gi-text{color:var(--ink-3);text-decoration:line-through}
-.gi-day{font-size:11px;color:var(--ink-3);padding-top:3px}
-
-/* ---------- 追加タスク ---------- */
-.chk-sm{width:18px;height:18px;border-radius:4px;margin-top:1px}
-.chk-sm:checked::after{width:9px;height:5px;transform:rotate(-45deg) translate(1px,-2px)}
-.xrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;align-items:start;padding:4px 0}
-.xtext{font-size:14px;line-height:1.5;cursor:pointer;color:var(--ink-2)}
-.xrow.done .xtext{color:var(--ink-3);text-decoration:line-through}
-.xdel{appearance:none;border:0;background:none;cursor:pointer;color:var(--ink-3);
-  font-size:16px;line-height:1;padding:0 4px}
-.xdel:hover{color:var(--bad)}
-.grp .xrow{grid-template-columns:auto minmax(0,1fr) auto auto;
-  border-bottom:1px solid color-mix(in oklab, var(--c) 12%, transparent);padding:5px 0}
-.grp .xrow:last-child{border-bottom:0}
-
-.addrow-in{flex:3;min-width:140px}
-@media (max-width:560px){
-  .addrow-in{flex-basis:100%}
-  .addrow{gap:7px}
+/* ---------------- 印刷 ---------------- */
+@media print{
+  header.top,.nav,.fab,.toast,.gate,.sheet,.col-side,.btn,.seg,.linkbtn,.xdel{display:none !important}
+  body{background:#fff;color:#000;font-size:11pt}
+  .wrap{max-width:none;padding:0}
+  .cols{display:block}
+  .sec{margin-top:16pt;break-inside:avoid}
+  .todo-row,.d2,.grp-item,.sp-item{break-inside:avoid}
+  .chk{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .spread{grid-auto-columns:1fr}
+  .spread-wrap{overflow:visible;margin:0;padding:0}
 }

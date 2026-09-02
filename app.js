@@ -141,13 +141,20 @@ const DOW = ["月","火","水","木","金","土","日"];
 const LS_KEY = "kanadai-chem-26w-v1";
 
 const state = {
-  weeks: {},          // "1".."26" -> {d:[bool x7], m:[num|null x7], c:[bool x3], score:null, anki:null, memo:"", tasks:null, conds:null}
+  weeks: {},          // "1".."26" -> 下の blankWeek() を参照
+  //   d  : [bool x7]            その日を終えたか（小項目が全部終われば自動で立つ）
+  //   sub: {"0":[bool,...], …}  日ごとの小項目の完了。キーは曜日index
+  //   sk : {"0":[bool,...], …}  小項目を「やらない」と決めた分（やり残しに出さない）
+  //   c  : [bool x3]            合格条件
+  //   score:{ok,total}|null     週末チェック（正解数／問題数）
+  //   extra:[{id,text,day,done}] 自分で足したタスク
   errors: [],         // {id, ref, date, cause, r:[null|"YYYY-MM-DD" x3], cleared:false, wk:n}
-  meta: {pledge:"", recovery:["","",""], examK:"2027-01-16", examN:"2027-02-25"},
+  meta: {pledge:"", recovery:["","",""], examK:"2027-01-16", examN:"2027-02-25",
+         weekLayout:"day", allLayout:"list", lastRef:"", onboarded:false},
 };
 
 function blankWeek(){
-  return {d:[false,false,false,false,false,false,false],
+  return {d:[false,false,false,false,false,false,false], sub:{}, sk:{},
           c:[false,false,false], score:null, anki:null, memo:"", tasks:null, conds:null, extra:[]};
 }
 function wk(n){
@@ -271,28 +278,6 @@ function weekDates(w){
   return Array.from({length:7}, (_,i)=> ymd(addDays(s, i)));
 }
 
-/* ============================================================
-   4. 描画
-   ============================================================ */
-let view = "week";
-let shownWeek = currentWeekNo();
-let editMode = false;
-
-const el = (tag, attrs, ...kids)=>{
-  const n = document.createElement(tag);
-  if(attrs) for(const [k,v] of Object.entries(attrs)){
-    if(v === false || v == null) continue;
-    if(k === "class") n.className = v;
-    else if(k === "text") n.textContent = v;
-    else if(k === "html") n.innerHTML = v;
-    else if(k.startsWith("on")) n.addEventListener(k.slice(2), v);
-    else if(k === "style") n.setAttribute("style", v);
-    else n.setAttribute(k, v);
-  }
-  for(const kid of kids.flat()) if(kid != null) n.append(kid.nodeType ? kid : document.createTextNode(kid));
-  return n;
-};
-
 function tasksOf(w){ const s = wk(w.n); return s.tasks || w.tasks; }
 function extrasOf(w){ const s = wk(w.n); if(!Array.isArray(s.extra)) s.extra = []; return s.extra; }
 
@@ -316,815 +301,1096 @@ function classify(t){
 }
 function condsOf(w){ const s = wk(w.n); return s.conds || w.conds; }
 
-/* --- 今週 --- */
-function renderWeek(){
-  const root = document.getElementById("viewWeek");
+
+/* ------------------------------------------------------------------
+   小項目（サブタスク）
+   1日のタスクは「A ＋ B ＋ C」の形で複数の作業を含むことがある。
+   ＋ でだけ割る。／ や ・ は「酸・塩基・塩」のように語の一部なので割らない。
+   ------------------------------------------------------------------ */
+function splitTask(t){
+  return String(t).split(/\s*[＋+]\s*/).map(x=>x.trim()).filter(Boolean);
+}
+function subsOf(w, i){ return splitTask(tasksOf(w)[i]); }
+
+function subState(n, i, len){
+  const s = wk(n);
+  if(!s.sub) s.sub = {};
+  const k = String(i);
+  if(!Array.isArray(s.sub[k]) || s.sub[k].length !== len){
+    const prev = Array.isArray(s.sub[k]) ? s.sub[k] : [];
+    s.sub[k] = Array.from({length:len}, (_,j)=> prev[j] != null ? !!prev[j] : !!s.d[i]);
+  }
+  return s.sub[k];
+}
+function skipState(n, i, len){
+  const s = wk(n);
+  if(!s.sk) s.sk = {};
+  const k = String(i);
+  if(!Array.isArray(s.sk[k]) || s.sk[k].length !== len) s.sk[k] = Array.from({length:len}, ()=>false);
+  return s.sk[k];
+}
+
+/* 小項目を1つ切り替える。全部終われば「その日を終えた」が自動で立つ。 */
+function toggleSub(n, i, j){
+  const w = WEEKS[n-1];
+  const subs = subsOf(w, i);
+  const st = subState(n, i, subs.length);
+  st[j] = !st[j];
+  const sk = skipState(n, i, subs.length);
+  wk(n).d[i] = st.every((v,k)=> v || sk[k]);
+  persist(); render();
+}
+/* 日の丸ごと切り替え。小項目もそろえる。 */
+function toggleDay(n, i){
+  const w = WEEKS[n-1];
+  const subs = subsOf(w, i);
+  const st = subState(n, i, subs.length);
+  const next = !wk(n).d[i];
+  for(let j=0;j<st.length;j++) st[j] = next;
+  wk(n).d[i] = next;
+  persist(); render();
+}
+function toggleSkip(n, i, j){
+  const w = WEEKS[n-1];
+  const subs = subsOf(w, i);
+  const sk = skipState(n, i, subs.length);
+  const st = subState(n, i, subs.length);
+  sk[j] = !sk[j];
+  wk(n).d[i] = st.every((v,k)=> v || sk[k]);
+  persist(); render();
+}
+function dayProgress(n, i){
+  const w = WEEKS[n-1];
+  const subs = subsOf(w, i);
+  const st = subState(n, i, subs.length);
+  const sk = skipState(n, i, subs.length);
+  const done = st.filter(Boolean).length;
+  const live = subs.length - sk.filter((v,k)=>v && !st[k]).length;
+  return {done, total:subs.length, live, subs, st, sk};
+}
+
+/* ------------------------------------------------------------------
+   やり残し：今日より前の日で、終えてもいないし「やらない」とも決めていない小項目。
+   ------------------------------------------------------------------ */
+function leftovers(limit){
+  const today = todayStr();
+  const out = [];
+  for(const w of WEEKS){
+    const dates = weekDates(w);
+    if(diffDays(dates[0], today) < 0) break;          // 未来の週は見ない
+    const subsAll = tasksOf(w);
+    for(let i=0;i<7;i++){
+      if(diffDays(dates[i], today) <= 0) continue;    // 今日と未来は「やり残し」ではない
+      const p = dayProgress(w.n, i);
+      p.subs.forEach((text, j)=>{
+        if(p.st[j] || p.sk[j]) return;
+        out.push({wn:w.n, i, j, text, date:dates[i], dow:DOW[i], week:w});
+      });
+    }
+  }
+  out.sort((a,b)=> a.date < b.date ? 1 : -1);          // 新しい順
+  return limit ? out.slice(0, limit) : out;
+}
+
+/* 今日が計画のどこか */
+function todayIndex(){
+  const t = todayStr();
+  for(const w of WEEKS){
+    const dates = weekDates(w);
+    for(let i=0;i<7;i++) if(dates[i] === t) return {w, i, date:t};
+  }
+  const first = WEEKS[0], last = WEEKS[25];
+  if(diffDays(first.start, t) < 0) return {w:first, i:0, date:weekDates(first)[0], before:true};
+  return {w:last, i:6, date:weekDates(last)[6], after:true};
+}
+
+/* ============================================================
+   4. 描画
+
+   方針：既定では今日必要なものだけを出す。
+   数えられるものを全部出さない。棒グラフより点、枠より余白。
+   ============================================================ */
+let view = "today";
+let shownWeek = 1;
+let editMode = false;
+let openWeek = null;
+let allLayout = "list";
+
+const el = (tag, attrs, ...kids)=>{
+  const n = document.createElement(tag);
+  if(attrs) for(const [k,v] of Object.entries(attrs)){
+    if(v === false || v == null) continue;
+    if(k === "class") n.className = v;
+    else if(k === "text") n.textContent = v;
+    else if(k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if(k === "style") n.setAttribute("style", v);
+    else n.setAttribute(k, v);
+  }
+  for(const kid of kids.flat()) if(kid != null) n.append(kid.nodeType ? kid : document.createTextNode(kid));
+  return n;
+};
+function chk(checked, onChange, label, small){
+  const c = el("input",{type:"checkbox",class:"chk" + (small?" chk-sm":""),"aria-label":label||""});
+  c.checked = !!checked;
+  c.addEventListener("change", onChange);
+  return c;
+}
+function sec(title, ...kids){
+  const s = el("section",{class:"sec"});
+  if(title) s.append(el("p",{class:"hd"}, title));
+  kids.flat().forEach(k=>k && s.append(k));
+  return s;
+}
+function phVar(w){ return `--c:var(${PHASE[w.ph].v})`; }
+
+/* ---------------- 今日 ---------------- */
+function renderToday(){
+  const root = document.getElementById("viewToday");
   root.textContent = "";
+  const T = todayIndex();
+  const w = T.w, i = T.i;
+  const cvar = phVar(w);
+  const P = PHASE[w.ph];
+  const p = dayProgress(w.n, i);
+  const extras = extrasOf(w).filter(e=>e.day === i || (e.day == null && !e.done));
+  const due = dueToday();
+  const left = leftovers();
+  const d = parse(T.date);
+
   const main = el("div",{class:"col-main"});
   const side = el("div",{class:"col-side"});
   root.append(el("div",{class:"cols"}, main, side));
+
+  /* 日付 */
+  const head = el("section",{class:"sec",style:cvar});
+  head.append(
+    el("div",{class:"t-date"},
+      el("span",{class:"t-md",text:(d.getMonth()+1)+"月"+d.getDate()+"日"}),
+      el("span",{class:"t-dow",text:DOW[i]+"曜"}),
+      el("span",{class:"t-seal",text:"今日"}),
+    ),
+    el("p",{class:"t-where"}, "第"+w.n+"週　", el("span",{class:"ph",style:cvar,text:P.name})),
+    el("p",{class:"t-title",text:w.title}),
+  );
+  if(T.before) head.append(el("p",{class:"verdict",text:"計画の開始前です。"+md(WEEKS[0].start)+"から始まります。"}));
+  if(T.after)  head.append(el("p",{class:"verdict",text:"計画の最終日を過ぎています。"}));
+  main.append(head);
+
+  /* 今日やること */
+  const todo = el("div",{class:"todo"});
+  p.subs.forEach((text, j)=>{
+    if(p.sk[j] && !p.st[j]){
+      todo.append(el("div",{class:"todo-row skipped"},
+        el("span",{class:"skip-mark",text:"—"}),
+        el("span",{class:"todo-text",text:text}),
+        el("button",{class:"linkbtn",onclick:()=>toggleSkip(w.n,i,j)},"戻す")));
+      return;
+    }
+    todo.append(el("div",{class:"todo-row" + (p.st[j]?" done":"")},
+      chk(p.st[j], ()=>toggleSub(w.n,i,j), text),
+      el("span",{class:"todo-text",text:text,onclick:()=>toggleSub(w.n,i,j)}),
+      p.st[j] ? el("span",{}) : el("button",{class:"linkbtn",onclick:()=>toggleSkip(w.n,i,j)},"やらない")));
+  });
+  extras.forEach(e=>{
+    todo.append(el("div",{class:"todo-row extra" + (e.done?" done":"")},
+      chk(e.done, ()=>{ e.done=!e.done; persist(); render(); }, e.text),
+      el("span",{class:"todo-text",text:e.text,onclick:()=>{ e.done=!e.done; persist(); render(); }}),
+      el("span",{class:"tag",text: e.day==null ? "今週中" : "追加"})));
+  });
+  main.append(sec(
+    el("span",{}, "今日やること　", el("b",{class:"num",text:p.done+" / "+p.total})),
+    todo,
+    el("details",{class:"fold"},
+      el("summary",{text:"足す"}),
+      el("div",{class:"body"}, addTaskRow(w, i)),
+    ),
+  ));
+
+  /* 解き直し */
+  if(due.length){
+    const box = el("div",{class:"call warn"});
+    box.append(el("p",{class:"muted",style:"margin:0 0 6px"},"翌日 → 1週間後 → 章末。3回続けて正解で記録から外れる。"));
+    due.forEach(e=>{
+      const c = CAUSES.find(x=>x.k===e.cause) || CAUSES[0];
+      box.append(el("div",{class:"call-row"},
+        el("span",{class:"ref",text:e.ref}),
+        el("span",{class:"cause",style:`--c:var(${c.v})`,text:c.label}),
+        el("span",{class:"muted",text:"誤答 "+md(e.date)}),
+        el("span",{class:"grow"}),
+        el("span",{class:"acts"},
+          el("button",{class:"btn",onclick:()=>markStep(e.id, nextStep(e))},"正解"),
+          el("button",{class:"linkbtn",onclick:()=>resetEntry(e.id)},"また間違えた"))));
+    });
+    main.append(sec(el("span",{},"今日の解き直し　", el("b",{class:"num",text:String(due.length)})), box));
+  }
+
+  /* やり残し */
+  if(left.length){
+    const box = el("div",{class:"call bad"});
+    box.append(el("p",{class:"muted",style:"margin:0 0 6px"},
+      "計画が壊れるのは飛ばした日ではなく、飛ばした翌日の判断で決まる。やるか、やらないと決めるか。"));
+    left.slice(0,10).forEach(o=>{
+      box.append(el("div",{class:"call-row"},
+        el("span",{class:"lo-day",text:"第"+o.wn+"週 "+o.dow+" "+md(o.date)}),
+        el("span",{class:"lo-text",text:o.text}),
+        el("span",{class:"acts"},
+          el("button",{class:"btn",onclick:()=>toggleSub(o.wn,o.i,o.j)},"やった"),
+          el("button",{class:"linkbtn",onclick:()=>toggleSkip(o.wn,o.i,o.j)},"やらない"))));
+    });
+    if(left.length > 10) box.append(el("p",{class:"muted",style:"margin:8px 0 0",text:"ほか "+(left.length-10)+"件"}));
+    box.append(el("button",{class:"linkbtn",style:"margin-top:8px",onclick:()=>{
+      if(!confirm(left.length+"件すべてを「やらない」にします。よろしいですか。")) return;
+      left.forEach(o=>{
+        const len = subsOf(WEEKS[o.wn-1], o.i).length;
+        skipState(o.wn,o.i,len)[o.j] = true;
+        const st = subState(o.wn,o.i,len), sk = skipState(o.wn,o.i,len);
+        wk(o.wn).d[o.i] = st.every((v,k)=> v || sk[k]);
+      });
+      persist(); render();
+    }},"すべて「やらない」にする"));
+    main.append(sec(el("span",{},"やり残し　", el("b",{class:"num",text:String(left.length)})), box));
+  }
+
+  /* 右：今週の進み・合格条件・残り */
+  const wp = wk(w.n).d.filter(Boolean).length;
+  const beads = el("div",{class:"beads"});
+  wk(w.n).d.forEach((v,k)=>beads.append(el("i",{class:(v?"on":"")+(k===i?" cur":"")})));
+  side.append(sec("今週の進み",
+    el("div",{style:"display:flex;align-items:center;gap:14px;margin-bottom:10px"},
+      el("span",{class:"count"}, el("b",{class:"num",text:String(wp)}), " / 7"),
+      beads,
+      el("button",{class:"btn",style:"margin-left:auto",onclick:()=>{ shownWeek=w.n; setView("week"); }},"週を開く"),
+    ),
+    el("p",{class:"note",style:"margin:0",text:w.note}),
+  ));
+
+  const conds = el("div",{});
+  condsOf(w).forEach((c,k)=>{
+    const lab = el("label",{class:"todo-row" + (wk(w.n).c[k]?" done":""),style:"cursor:pointer"});
+    lab.append(chk(wk(w.n).c[k], ()=>{ wk(w.n).c[k]=!wk(w.n).c[k]; persist(); render(); }, c, true),
+      el("span",{class:"todo-text",style:"font-size:14.5px",text:c}), el("span",{}));
+    conds.append(lab);
+  });
+  side.append(sec("今週の合格条件", conds));
+
+  const t = todayStr();
+  side.append(sec("残り", el("div",{class:"stats"},
+    el("div",{}, el("b",{class:"num",text:Math.max(0,diffDays(t,state.meta.examK))+"日"}), el("span",{text:"共通テストまで"})),
+    el("div",{}, el("b",{class:"num",text:Math.max(0,diffDays(t,state.meta.examN))+"日"}), el("span",{text:"二次試験まで"})),
+  )));
+}
+
+/* 追加タスクの入力（今日・週の両方から使う） */
+function addTaskRow(w, defaultDay){
+  const dates = weekDates(w);
+  const inp = el("input",{type:"text",placeholder:"自分で足すこと"});
+  const sl = el("select",{});
+  sl.append(el("option",{value:"",text:"今週中"}));
+  DOW.forEach((dd,k)=>{
+    const o = el("option",{value:String(k),text:dd+" "+md(dates[k])});
+    if(defaultDay===k) o.selected = true;
+    sl.append(o);
+  });
+  const add = ()=>{
+    const t = inp.value.trim(); if(!t){ inp.focus(); return; }
+    extrasOf(w).push({id:"x"+Date.now()+Math.random().toString(36).slice(2,5),
+                      text:t, day: sl.value==="" ? null : Number(sl.value), done:false});
+    persist(); render();
+  };
+  inp.addEventListener("keydown", ev=>{ if(ev.key==="Enter") add(); });
+  return el("div",{class:"row"},
+    el("div",{class:"addrow-in"}, inp),
+    el("div",{class:"shrink",style:"min-width:112px"}, sl),
+    el("div",{class:"shrink"}, el("button",{class:"btn",onclick:add},"足す")));
+}
+
+/* ---------------- 今週 ---------------- */
+function renderWeek(){
+  const root = document.getElementById("viewWeek");
+  root.textContent = "";
   const w = WEEKS[shownWeek-1];
   const s = wk(w.n);
   const P = PHASE[w.ph];
   const dates = weekDates(w);
   const today = todayStr();
-  const cvar = `--c:var(${P.v})`;
+  const cvar = phVar(w);
+  const layout = ["day","sum","spread"].includes(state.meta.weekLayout) ? state.meta.weekLayout : "day";
+  const extras = extrasOf(w);
 
-  /* ヘッダ */
-  const head = el("section",{class:"card",style:cvar});
+  const wide = layout === "spread";
+  const main = el("div",{class:"col-main"});
+  const side = el("div",{class:"col-side"});
+  root.append(wide ? el("div",{}, main, side) : el("div",{class:"cols"}, main, side));
+
+  /* 見出し */
+  const sel = el("select",{class:"wk-sel","aria-label":"週を選ぶ"});
+  WEEKS.forEach(x=>{
+    const o = el("option",{value:String(x.n),text:"第"+x.n+"週　"+x.short});
+    if(x.n===w.n) o.selected = true;
+    sel.append(o);
+  });
+  sel.addEventListener("change", ()=>{ shownWeek=Number(sel.value); editMode=false; render(); });
+
+  const head = el("section",{class:"sec",style:cvar});
   head.append(
     el("div",{class:"wk-head"},
-      el("div",{class:"wk-no mono"}, String(w.n).padStart(2,"0")),
-      el("div",{class:"wk-meta"},
-        el("div",{class:"wk-line"},
-          el("span",{class:"wk-dates mono"}, md(w.start) + "–" + md(dates[6])),
-          el("span",{class:"ph",style:cvar,text:P.name}),
-        ),
-        el("h2",{text:w.title}),
-      ),
+      el("span",{class:"wk-no",text:"第 "+w.n+" 週"}),
+      el("span",{class:"wk-dates",text:md(w.start)+" – "+md(dates[6])}),
+      w.n===currentWeekNo() ? el("span",{class:"wnow",text:"今週"}) : null,
       el("div",{class:"wk-nav"},
         el("button",{class:"btn",onclick:()=>{ shownWeek=Math.max(1,shownWeek-1); editMode=false; render(); },"aria-label":"前の週"},"‹"),
-        el("button",{class:"btn",onclick:()=>{ shownWeek=currentWeekNo(); editMode=false; render(); }},"今週"),
+        sel,
         el("button",{class:"btn",onclick:()=>{ shownWeek=Math.min(26,shownWeek+1); editMode=false; render(); },"aria-label":"次の週"},"›"),
       ),
     ),
-    el("p",{class:"note",style:"margin:6px 0 10px",text:w.note}),
-  );
-
-  /* 到達メーター */
-  const doneCount = s.d.filter(Boolean).length;
-  head.append(
-    el("div",{class:"meter-row"},
-      el("span",{class:"eyebrow",style:"margin:0"},"今週の到達　", el("b",{class:"mono",text:doneCount+"/7"})),
-      el("span",{class:"muted",style:"margin-left:auto;font-size:12px"}, "Anki " + P.anki),
-    ),
-    el("div",{class:"meter",style:cvar}, s.d.map(v=>el("i",{class: v ? "on" : ""}))),
+    el("h2",{text:w.title}),
+    el("p",{class:"t-where",style:"margin-top:6px"}, el("span",{class:"ph",style:cvar,text:P.name})),
+    el("details",{class:"fold"},
+      el("summary",{text:"この週のねらいと Anki の目安"}),
+      el("div",{class:"body"},
+        el("p",{class:"note",style:"margin:0 0 6px",text:w.note}),
+        el("p",{class:"muted",style:"margin:0",text:"Anki　"+P.anki}))),
   );
   main.append(head);
 
-  /* 解き直しの期限 */
-  const due = dueToday();
-  if(due.length){
-    const b = el("section",{class:"due-banner"},
-      el("h3",{text:"今日の解き直し（" + due.length + "件）"}),
-      el("p",{class:"muted",style:"margin:0 0 8px"},"誤答は翌日 → 1週間後 → 章末。3回連続正解で記録から外れる。"));
-    due.forEach(e=>{
-      const c = CAUSES.find(x=>x.k===e.cause) || CAUSES[0];
-      b.append(el("div",{style:"display:flex;gap:8px;align-items:center;padding:3px 0;flex-wrap:wrap"},
-        el("b",{class:"mono",style:"font-size:13px",text:e.ref}),
-        el("span",{class:"cause",style:`--c:var(${c.v})`,text:c.label}),
-        el("span",{class:"muted",text:"誤答 " + md(e.date)}),
-        el("button",{class:"btn",style:"margin-left:auto",onclick:()=>{ markStep(e.id, nextStep(e)); }},"正解にする"),
-        el("button",{class:"btn danger",onclick:()=>{ resetEntry(e.id); }},"また間違えた"),
-      ));
-    });
-    side.append(b);
-  }
+  /* 総量と切替 */
+  let subTotal=0, subDone=0;
+  for(let i=0;i<7;i++){ const p=dayProgress(w.n,i); subTotal+=p.total; subDone+=p.done; }
+  const total = subTotal + extras.length;
+  const totalDone = subDone + extras.filter(e=>e.done).length;
 
-  /* --- レイアウト切替：日ごと / 週まとめ --- */
-  const layout = state.meta.weekLayout === "sum" ? "sum" : "day";
-
-  const dayCard = el("section",{class:"card",style:cvar});
-  dayCard.append(
-    el("div",{class:"sched-head"},
-      el("div",{class:"seg seg-sm",style:cvar},
-        el("button",{"aria-pressed":String(layout==="day"),
-          onclick:()=>{ state.meta.weekLayout="day"; persist(); render(); }},"日ごと"),
-        el("button",{"aria-pressed":String(layout==="sum"),
-          onclick:()=>{ state.meta.weekLayout="sum"; persist(); render(); }},"週まとめ"),
-      ),
-      el("button",{class:"btn",style:"margin-left:auto",onclick:()=>{ editMode=!editMode; render(); }},
-        editMode ? "編集を終える" : "内容を編集"),
+  const body = el("section",{class:"sec",style:cvar});
+  body.append(el("div",{class:"bar"},
+    el("div",{class:"seg"},
+      el("button",{"aria-pressed":String(layout==="day"),onclick:()=>{ state.meta.weekLayout="day"; persist(); render(); }},"日ごと"),
+      el("button",{"aria-pressed":String(layout==="sum"),onclick:()=>{ state.meta.weekLayout="sum"; persist(); render(); }},"まとめ"),
+      el("button",{"aria-pressed":String(layout==="spread"),onclick:()=>{ state.meta.weekLayout="spread"; persist(); render(); }},"見開き"),
     ),
-  );
+    el("span",{class:"count"},"今週やること　", el("b",{class:"num",text:String(totalDone)}), " / "+total),
+    el("button",{class:"linkbtn",style:"margin-left:auto",onclick:()=>{ editMode=!editMode; render(); }},
+      editMode ? "編集を終える" : "編集"),
+  ));
 
-  const extras = extrasOf(w);
-  const plannedDone = s.d.filter(Boolean).length;
-  const extraDone = extras.filter(e=>e.done).length;
-  const total = 7 + extras.length;
-  const totalDone = plannedDone + extraDone;
-
-  /* 今週やることの総量 */
-  dayCard.append(
-    el("div",{class:"totalbar"},
-      el("span",{class:"tb-label"},"今週やること　",
-        el("b",{class:"mono",text:totalDone+" / "+total}),
-        el("span",{class:"muted",style:"margin-left:6px",text:"件"})),
-      el("div",{class:"tb-track"}, el("div",{class:"tb-fill",style:`width:${total?totalDone/total*100:0}%`})),
-    ),
-  );
-
-  /* --- 追加タスクの入力（両レイアウト共通） --- */
-  function addExtraRow(){
-    const inp = el("input",{type:"text",placeholder:"自分で足すこと（例：無機の反応式を10個書く）"});
-    const sel = el("select",{});
-    sel.append(el("option",{value:"",text:"今週中"}));
-    DOW.forEach((d,i)=>sel.append(el("option",{value:String(i),text:d+" "+md(dates[i])})));
-    const add = ()=>{
-      const t = inp.value.trim(); if(!t) { inp.focus(); return; }
-      extrasOf(w).push({id:"x"+Date.now()+Math.random().toString(36).slice(2,5),
-                        text:t, day: sel.value==="" ? null : Number(sel.value), done:false});
-      persist(); render();
-    };
-    inp.addEventListener("keydown", ev=>{ if(ev.key==="Enter") add(); });
-    return el("div",{class:"row addrow",style:"margin-top:12px"},
-      el("div",{class:"addrow-in"}, inp),
-      el("div",{class:"shrink",style:"min-width:104px"}, sel),
-      el("div",{class:"shrink"}, el("button",{class:"btn primary",onclick:add},"足す")),
-    );
-  }
-
-  function extraLine(e){
-    const box = el("input",{type:"checkbox",class:"chk chk-sm"});
-    box.checked = !!e.done;
-    box.addEventListener("change", ()=>{ e.done = box.checked; persist(); render(); });
+  function extraLine(e, showDay){
     return el("div",{class:"xrow" + (e.done?" done":"")},
-      box,
+      chk(e.done, ()=>{ e.done=!e.done; persist(); render(); }, e.text, true),
       el("span",{class:"xtext",text:e.text,onclick:()=>{ e.done=!e.done; persist(); render(); }}),
+      showDay ? el("span",{class:"gi-day",text: e.day==null ? "—" : DOW[e.day]}) : el("span",{}),
       el("button",{class:"xdel","aria-label":"削除",onclick:()=>{
         wk(w.n).extra = extrasOf(w).filter(x=>x.id!==e.id); persist(); render();
-      }},"×"),
-    );
+      }},"×"));
   }
 
-  if(layout === "day"){
-    /* ---------- 日ごと ---------- */
-    dayCard.append(el("p",{class:"note",style:"margin:10px 0 8px"},
-      "月〜木＝よくわかるを読む＋基礎問／金・土＝問題演習／日＝週末チェック。行をタップすると消える。"));
-
-    const days = el("div",{class:"days"});
-    tasksOf(w).forEach((task, i)=>{
-      const isToday = dates[i] === today;
-      const row = el("div",{class:"day" + (s.d[i]?" done":"") + (isToday?" today":"") + (i===6?" sun":"")});
-      row.append(el("div",{class:"dw mono"}, el("b",{text:DOW[i]}), md(dates[i])));
-
+  /* 日ごと */
+  if(layout==="day"){
+    tasksOf(w).forEach((task,i)=>{
+      const p = dayProgress(w.n,i);
+      const box = el("div",{class:"d2" + (dates[i]===today?" today":"") + (i===6?" sun":"")});
+      box.append(el("div",{class:"d2-head"},
+        el("span",{class:"d2-dow"}, el("b",{text:DOW[i]}), md(dates[i])),
+        el("span",{class:"d2-count",text:p.done+"/"+p.total}),
+        chk(s.d[i], ()=>toggleDay(w.n,i), DOW[i]+"曜をすべて完了")));
       if(editMode){
-        const ta = el("textarea",{rows:"2",style:"font-size:13px"});
+        const ta = el("textarea",{rows:"2",style:"font-size:14px;margin-top:8px"});
         ta.value = task;
         ta.addEventListener("change", ()=>{
-          const arr = tasksOf(w).slice(); arr[i] = ta.value;
-          wk(w.n).tasks = arr; persist();
+          const arr = tasksOf(w).slice(); arr[i]=ta.value;
+          wk(w.n).tasks=arr; delete wk(w.n).sub[String(i)]; delete wk(w.n).sk[String(i)];
+          persist(); render();
         });
-        row.append(ta);
+        box.append(ta);
       }else{
-        const cell = el("div",{});
-        cell.append(el("div",{class:"dtask",text:task,onclick:()=>toggleDay(w.n,i)}));
-        extras.filter(e=>e.day===i).forEach(e=>cell.append(extraLine(e)));
-        row.append(cell);
+        p.subs.forEach((text,j)=>{
+          if(p.sk[j] && !p.st[j]){
+            box.append(el("div",{class:"todo-row skipped"},
+              el("span",{class:"skip-mark",text:"—"}),
+              el("span",{class:"todo-text",text:text}),
+              el("button",{class:"linkbtn",onclick:()=>toggleSkip(w.n,i,j)},"戻す")));
+            return;
+          }
+          box.append(el("div",{class:"todo-row" + (p.st[j]?" done":"")},
+            chk(p.st[j], ()=>toggleSub(w.n,i,j), text, true),
+            el("span",{class:"todo-text",text:text,onclick:()=>toggleSub(w.n,i,j)})));
+        });
+        extras.filter(e=>e.day===i).forEach(e=>box.append(extraLine(e,false)));
       }
-
-      row.append((()=>{
-        const c = el("input",{type:"checkbox",class:"chk","aria-label":DOW[i]+"曜を完了"});
-        c.checked = !!s.d[i];
-        c.addEventListener("change", ()=>toggleDay(w.n,i));
-        return c;
-      })());
-      days.append(row);
+      body.append(box);
     });
-    dayCard.append(days);
+  }
 
-    const loose = extras.filter(e=>e.day==null);
-    if(loose.length){
-      dayCard.append(el("p",{class:"eyebrow",style:"margin:14px 0 4px",text:"日を決めていないもの"}));
-      loose.forEach(e=>dayCard.append(extraLine(e)));
-    }
-  }else{
-    /* ---------- 週まとめ：教材ごとの「やることリスト」 ---------- */
-    dayCard.append(el("p",{class:"note",style:"margin:10px 0 10px"},
-      "今週やることを教材ごとにまとめたもの。順番は自由。どの曜日の分かは右端に出る。"));
-
+  /* まとめ（教材ごと） */
+  if(layout==="sum"){
     const groups = new Map();
     tasksOf(w).forEach((t,i)=>{
-      const g = classify(t);
-      if(!groups.has(g.k)) groups.set(g.k, {g, items:[]});
-      groups.get(g.k).items.push({t, i});
-    });
-
-    /* 表示は学習の流れ順（読む→解く→暗記→確認）。分類の優先順とは別。 */
-    const ORDER = ["yoku","kiso","jyu","kako","anki","check"];
-    const order = ORDER.map(k => k === "yoku" ? SRC_READ : SRC.find(x=>x.k===k));
-    order.forEach(gdef=>{
-      const grp = groups.get(gdef.k);
-      if(!grp) return;
-      const done = grp.items.filter(x=>s.d[x.i]).length;
-      const box = el("div",{class:"grp",style:`--c:var(${gdef.v})`});
-      box.append(el("div",{class:"grp-head"},
-        el("span",{class:"grp-name",text:gdef.label}),
-        el("span",{class:"grp-count mono",text:done+"/"+grp.items.length}),
-      ));
-      grp.items.forEach(({t,i})=>{
-        const c = el("input",{type:"checkbox",class:"chk chk-sm"});
-        c.checked = !!s.d[i];
-        c.addEventListener("change", ()=>toggleDay(w.n,i));
-        box.append(el("div",{class:"grp-item" + (s.d[i]?" done":"")},
-          c,
-          el("span",{class:"gi-text",text:t,onclick:()=>toggleDay(w.n,i)}),
-          el("span",{class:"gi-day mono",text:DOW[i]}),
-        ));
+      const p = dayProgress(w.n,i);
+      p.subs.forEach((text,j)=>{
+        const g = classify(text);
+        if(!groups.has(g.k)) groups.set(g.k,{g,items:[]});
+        groups.get(g.k).items.push({text,i,j,done:p.st[j],skip:p.sk[j]});
       });
-      dayCard.append(box);
     });
-
+    ["yoku","kiso","jyu","kako","anki","check"]
+      .map(k=> k==="yoku" ? SRC_READ : SRC.find(x=>x.k===k))
+      .forEach(gdef=>{
+        const grp = groups.get(gdef.k); if(!grp) return;
+        const done = grp.items.filter(x=>x.done).length;
+        const box = el("div",{class:"grp",style:`--c:var(${gdef.v})`});
+        box.append(el("div",{class:"grp-head"},
+          el("span",{class:"grp-name",text:gdef.label}),
+          el("span",{class:"grp-count",text:done+"/"+grp.items.length})));
+        grp.items.forEach(it=>{
+          box.append(el("div",{class:"grp-item" + (it.done?" done":"") + (it.skip&&!it.done?" skipped":"")},
+            chk(it.done, ()=>toggleSub(w.n,it.i,it.j), it.text, true),
+            el("span",{class:"gi-text",text:it.text,onclick:()=>toggleSub(w.n,it.i,it.j)}),
+            el("span",{class:"gi-day",text:DOW[it.i]})));
+        });
+        body.append(box);
+      });
     if(extras.length){
       const box = el("div",{class:"grp",style:"--c:var(--ph-kobun)"});
       box.append(el("div",{class:"grp-head"},
         el("span",{class:"grp-name",text:"自分で足したこと"}),
-        el("span",{class:"grp-count mono",text:extraDone+"/"+extras.length}),
-      ));
-      extras.forEach(e=>{
-        const line = extraLine(e);
-        line.append(el("span",{class:"gi-day mono",text: e.day==null ? "—" : DOW[e.day]}));
-        box.append(line);
-      });
-      dayCard.append(box);
+        el("span",{class:"grp-count",text:extras.filter(e=>e.done).length+"/"+extras.length})));
+      extras.forEach(e=>box.append(extraLine(e,true)));
+      body.append(box);
     }
   }
 
-  dayCard.append(addExtraRow());
+  /* 見開き */
+  if(layout==="spread"){
+    const grid = el("div",{class:"spread"});
+    tasksOf(w).forEach((task,i)=>{
+      const p = dayProgress(w.n,i);
+      const col = el("div",{class:"sp-col" + (dates[i]===today?" today":"") + (i===6?" sun":"")});
+      col.append(el("div",{class:"sp-head"},
+        el("span",{class:"sp-dow",text:DOW[i]}),
+        el("span",{class:"sp-md",text:md(dates[i])}),
+        el("span",{class:"sp-count",text:p.done+"/"+p.total})));
+      p.subs.forEach((text,j)=>{
+        col.append(el("div",{class:"sp-item" + (p.st[j]?" done":"") + (p.sk[j]&&!p.st[j]?" skipped":"")},
+          chk(p.st[j], ()=>toggleSub(w.n,i,j), text, true),
+          el("span",{class:"sp-text",text:text,onclick:()=>toggleSub(w.n,i,j)})));
+      });
+      extras.filter(e=>e.day===i).forEach(e=>{
+        col.append(el("div",{class:"sp-item" + (e.done?" done":"")},
+          chk(e.done, ()=>{ e.done=!e.done; persist(); render(); }, e.text, true),
+          el("span",{class:"sp-text",text:e.text,onclick:()=>{ e.done=!e.done; persist(); render(); }})));
+      });
+      grid.append(col);
+    });
+    body.append(el("div",{class:"spread-wrap"}, grid));
+  }
+
+  const loose = extras.filter(e=>e.day==null);
+  if(loose.length && layout!=="sum"){
+    body.append(el("p",{class:"hd",style:"margin:22px 0 6px",text:"日を決めていないもの"}));
+    loose.forEach(e=>body.append(extraLine(e,false)));
+  }
+  body.append(el("details",{class:"fold"},
+    el("summary",{text:"足す"}), el("div",{class:"body"}, addTaskRow(w, null))));
 
   if(editMode && wk(w.n).tasks){
-    dayCard.append(el("button",{class:"btn",style:"margin-top:8px",onclick:()=>{ wk(w.n).tasks=null; persist(); render(); }},"元の計画に戻す"));
+    body.append(el("button",{class:"btn",style:"margin-top:10px",onclick:()=>{
+      wk(w.n).tasks=null; wk(w.n).sub={}; wk(w.n).sk={}; persist(); render();
+    }},"元の計画に戻す"));
   }
-  main.append(dayCard);
+  main.append(body);
 
-  /* 合格条件 */
-  const cc = el("section",{class:"card",style:cvar});
-  cc.append(el("p",{class:"eyebrow",text:"今週の合格条件"}));
-  const clist = el("div",{class:"conds"});
-  condsOf(w).forEach((c,i)=>{
+  /* 右 */
+  const conds = el("div",{});
+  condsOf(w).forEach((c,k)=>{
     if(editMode){
       const inp = el("input",{type:"text"}); inp.value = c;
-      inp.addEventListener("change",()=>{ const arr=condsOf(w).slice(); arr[i]=inp.value; wk(w.n).conds=arr; persist(); });
-      clist.append(el("div",{style:"padding:4px 0"}, inp));
+      inp.addEventListener("change",()=>{ const a=condsOf(w).slice(); a[k]=inp.value; wk(w.n).conds=a; persist(); });
+      conds.append(el("div",{style:"padding:5px 0"}, inp));
     }else{
-      const lab = el("label",{class:"cond" + (s.c[i]?" done":"")});
-      const box = el("input",{type:"checkbox",class:"chk"});
-      box.checked = !!s.c[i];
-      box.addEventListener("change",()=>{ wk(w.n).c[i]=box.checked; persist(); render(); });
-      lab.append(box, el("span",{text:c}));
-      clist.append(lab);
+      const lab = el("label",{class:"todo-row" + (s.c[k]?" done":""),style:"cursor:pointer"});
+      lab.append(chk(s.c[k], ()=>{ wk(w.n).c[k]=!wk(w.n).c[k]; persist(); render(); }, c, true),
+        el("span",{class:"todo-text",style:"font-size:14.5px",text:c}), el("span",{}));
+      conds.append(lab);
     }
   });
-  cc.append(clist);
-  side.append(cc);
+  side.append(sec("今週の合格条件", conds));
 
-  /* 週末チェック */
-  const wc = el("section",{class:"card",style:cvar});
-  wc.append(
-    el("p",{class:"eyebrow",text:"週末チェック（日曜）"}),
-    el("p",{class:"muted",style:"margin-bottom:10px"},"今週の基礎問を白紙で解き直し、正答率を入れる。この判定は動かさない。"),
-    el("div",{class:"row"},
-      el("div",{}, el("label",{class:"fld",for:"scoreIn",text:"正答率（%）"}), (()=>{
-        const inp = el("input",{type:"number",min:"0",max:"100",step:"1",id:"scoreIn",class:"mono",placeholder:"例 80"});
-        if(s.score != null) inp.value = s.score;
-        inp.addEventListener("change",()=>{ wk(w.n).score = inp.value==="" ? null : Number(inp.value); persist(); render(); });
-        return inp;
-      })()),
-      el("div",{}, el("label",{class:"fld",text:"今週の新規Anki（枚）"}), (()=>{
-        const inp = el("input",{type:"number",min:"0",step:"1",class:"mono",placeholder:"—"});
-        if(s.anki != null) inp.value = s.anki;
-        inp.addEventListener("change",()=>{ wk(w.n).anki = inp.value==="" ? null : Number(inp.value); persist(); });
-        return inp;
-      })()),
-    ),
-  );
-  if(s.score != null){
-    const pass = s.score >= 80;
-    wc.append(el("div",{class:"verdict " + (pass?"pass":"fail")},
-      pass ? "8割以上。次の章へ進む。" : "8割未満。次の章へ進まず、1週かけて補修する。ここを飛ばすと6ヶ月後に効いてくる。"));
-  }else{
-    wc.append(el("div",{class:"verdict"},"未記入。8割以上なら次へ、8割未満なら1週補修。"));
-  }
-  side.append(wc);
+  const scv = s.score && typeof s.score === "object" ? s.score
+            : (typeof s.score === "number" ? {ok:s.score, total:100} : null);
+  const okIn = el("input",{type:"number",min:"0",placeholder:"正解"});
+  const tlIn = el("input",{type:"number",min:"1",placeholder:"問題数"});
+  if(scv){ okIn.value = scv.ok; tlIn.value = scv.total; }
+  const save = ()=>{
+    const o = okIn.value===""?null:Number(okIn.value);
+    const t = tlIn.value===""?null:Number(tlIn.value);
+    wk(w.n).score = (o==null || !t) ? null : {ok:o,total:t};
+    persist(); render();
+  };
+  okIn.addEventListener("change",save); tlIn.addEventListener("change",save);
+  const pct = scv && scv.total ? Math.round(scv.ok/scv.total*100) : null;
+  const ak = el("input",{type:"number",min:"0",placeholder:"—"});
+  if(s.anki != null) ak.value = s.anki;
+  ak.addEventListener("change",()=>{ wk(w.n).anki = ak.value===""?null:Number(ak.value); persist(); });
 
-  /* メモ */
-  const mc = el("section",{class:"card"});
-  mc.append(el("p",{class:"eyebrow",text:"今週のメモ"}));
-  const ta = el("textarea",{rows:"5",class:"note-area",placeholder:"詰まった箇所、新研究で引いたこと、来週に回したこと"});
+  side.append(sec("週末チェック（日曜）",
+    el("p",{class:"note",style:"margin-bottom:12px"},"今週の基礎問を白紙で解き直す。この判定は動かさない。"),
+    el("div",{class:"scorerow"}, okIn, el("span",{class:"muted",text:"問 ／"}), tlIn, el("span",{class:"muted",text:"問"})),
+    pct==null
+      ? el("p",{class:"verdict"},"未記入。8割以上なら次へ、8割未満なら1週かけて補修する。")
+      : el("p",{class:"verdict " + (pct>=80?"pass":"fail")},
+          el("b",{class:"num",text:pct+"%"}), "　",
+          pct>=80 ? "8割以上。次の章へ進む。" : "8割未満。次の章へ進まず、1週かけて補修する。"),
+    el("details",{class:"fold"},
+      el("summary",{text:"今週の新規Ankiカードを記録する"}),
+      el("div",{class:"body"}, ak)),
+  ));
+
+  const ta = el("textarea",{rows:"5",placeholder:"詰まった箇所、新研究で引いたこと、来週に回したこと"});
   ta.value = s.memo || "";
   ta.addEventListener("input",()=>{ wk(w.n).memo = ta.value; persist(); });
-  mc.append(ta);
-  side.append(mc);
+  side.append(sec("今週のメモ", ta));
 }
 
-function toggleDay(n, i){
-  const s = wk(n);
-  s.d[i] = !s.d[i];
-  persist();
-  render();
-}
-
-/* --- 26週：計画表 --- */
-let openWeek = null;   // 展開中の週
-
+/* ---------------- 全体 ---------------- */
 function renderAll(){
   const root = document.getElementById("viewAll");
   root.textContent = "";
   const today = todayStr();
   const now = currentWeekNo();
 
-  /* 現在地 */
-  const doneDays = WEEKS.reduce((a,w)=>a+wk(w.n).d.filter(Boolean).length,0);
-  const scored = WEEKS.filter(w=>wk(w.n).score != null);
-  const passed = scored.filter(w=>wk(w.n).score >= 80).length;
-  const toN = Math.max(0, diffDays(today, state.meta.examN));
-  const toK = Math.max(0, diffDays(today, state.meta.examK));
+  /* 現在地：数えて意味のあるものだけ */
+  const inputWeeks = WEEKS.filter(w=>w.n <= 18);
+  const inputDone = inputWeeks.reduce((a,w)=>a+wk(w.n).d.filter(Boolean).length,0);
+  const scored = WEEKS.filter(w=>wk(w.n).score);
+  const passed = scored.filter(w=>{ const s=wk(w.n).score; return s.total && s.ok/s.total >= .8; }).length;
 
-  const st = el("section",{class:"card"});
-  st.append(el("div",{class:"stats"},
-    el("div",{class:"stat"}, el("b",{class:"mono",text:doneDays+"/182"}), el("span",{text:"消化した日"})),
-    el("div",{class:"stat"}, el("b",{class:"mono",text: scored.length ? passed+"/"+scored.length : "—"}), el("span",{text:"週末チェック通過"})),
-    el("div",{class:"stat"}, el("b",{class:"mono",text:toK+"日"}), el("span",{text:"共通テストまで"})),
-    el("div",{class:"stat"}, el("b",{class:"mono",text:toN+"日"}), el("span",{text:"二次試験まで"})),
-  ));
+  root.append(sec(null, el("div",{class:"stats"},
+    el("div",{}, el("b",{class:"num",text:Math.max(0,diffDays(today,state.meta.examN))+"日"}),
+      el("span",{text:"二次試験まで"})),
+    el("div",{}, el("b",{class:"num",text:Math.max(0,diffDays(today,state.meta.examK))+"日"}),
+      el("span",{text:"共通テストまで"})),
+    el("div",{}, el("b",{class:"num",text:Math.round(inputDone/(18*7)*100)+"%"}),
+      el("span",{text:"インプット期の消化"})),
+    scored.length ? el("div",{}, el("b",{class:"num",text:passed+"/"+scored.length}),
+      el("span",{text:"週末チェック通過"})) : null,
+  )));
 
-  const band = el("div",{class:"band"});
-  [{label:"インプット期　第1–18週", short:"インプット 1–18", n:18, v:"--ph-riron"},
-   {label:"数英集中 19–20", short:"数英 19–20", n:2, v:"--ph-kyote"},
-   {label:"化学スプリント 21–26", short:"演習 21–26", n:6, v:"--ph-ensyu"}].forEach(pz=>{
-    band.append(el("div",{style:`flex:${pz.n};--c:var(${pz.v})`},
-      el("span",{class:"b-long",text:pz.label}),
-      el("span",{class:"b-short",text:pz.short})));
-  });
-  st.append(band);
-  st.append(el("p",{class:"note",style:"margin:8px 0 0"},
-    "化学は共通テストにない。だから1月は維持30分だけに落として数英へ寄せ、共テ明けから全投入する。"));
-  root.append(st);
+  /* 切替 */
+  const swap = el("div",{class:"bar",style:"margin-top:30px"},
+    el("div",{class:"seg"},
+      el("button",{"aria-pressed":String(allLayout==="list"),onclick:()=>{ allLayout="list"; render(); }},"一覧"),
+      el("button",{"aria-pressed":String(allLayout==="gantt"),onclick:()=>{ allLayout="gantt"; render(); }},"工程表"),
+    ),
+    allLayout==="list" ? el("button",{class:"linkbtn",style:"margin-left:auto",onclick:()=>{
+      openWeek = openWeek==="all" ? null : "all"; render();
+    }}, openWeek==="all" ? "すべて閉じる" : "すべて開く") : null,
+  );
+  root.append(swap);
 
-  /* 計画表本体 */
-  const sc = el("section",{class:"card"});
-  sc.append(el("div",{class:"sched-head"},
-    el("p",{class:"eyebrow",style:"margin:0",text:"26週の計画"}),
-    el("button",{class:"btn",style:"margin-left:auto",onclick:()=>{
-      openWeek = (openWeek === "all") ? null : "all"; render();
-    }}, openWeek === "all" ? "すべて閉じる" : "すべて開く"),
-  ));
+  if(allLayout === "gantt") root.append(gantt(today));
+  else root.append(weekList(today, now));
 
-  const sched = el("div",{class:"sched"});
+  /* 12月の判断 */
+  root.append(sec("十二月上旬に決めること",
+    el("p",{class:"note",style:"margin-bottom:6px"},"第18週（12/28–1/3）の高分子が年末年始と重なる。"),
+    el("p",{class:"muted",style:"margin:0"},
+      "第15〜17週（有機）が順調なら1週前倒しし、12/21–12/27に高分子、12/28–1/3を化学基礎〜理論の総点検に充てるほうが安全。各週の「編集」でタスクを差し替えられる。")));
+}
+
+function weekList(today, now){
+  const box = el("div",{});
   WEEKS.forEach(w=>{
     const ws = wk(w.n);
-    const done = ws.d.filter(Boolean).length;
     const dates = weekDates(w);
+    const done = ws.d.filter(Boolean).length;
     const past = diffDays(dates[6], today) > 0;
-    const isNow = w.n === now;
-    const open = openWeek === "all" || openWeek === w.n;
-    const cvar = `--c:var(${PHASE[w.ph].v})`;
+    const open = openWeek==="all" || openWeek===w.n;
+    const cvar = phVar(w);
+    const sc = ws.score;
+    const pct = sc && sc.total ? Math.round(sc.ok/sc.total*100) : null;
 
-    const dots = el("span",{class:"wdots"});
-    ws.d.forEach(v=>dots.append(el("i",{class: v ? "on" : ""})));
+    const beads = el("div",{class:"beads"});
+    ws.d.forEach(v=>beads.append(el("i",{class:v?"on":""})));
 
-    const row = el("button",{
-      class:"wrow" + (isNow?" now":"") + (open?" open":"") + (past && done<5 ? " behind":""),
+    box.append(el("button",{
+      class:"wrow" + (w.n===now?" now":"") + (past && done<5 ? " behind":""),
       style:cvar, "aria-expanded":String(open),
-      onclick:()=>{ openWeek = (openWeek === w.n) ? null : w.n; render(); },
+      onclick:()=>{ openWeek = openWeek===w.n ? null : w.n; render(); },
     },
-      el("span",{class:"wnum mono",text:String(w.n).padStart(2,"0")}),
+      el("span",{class:"wnum",text:String(w.n)}),
       el("span",{class:"wmain"},
         el("span",{class:"wtitle",text:w.title}),
         el("span",{class:"wsub"},
-          el("span",{class:"wph",text:PHASE[w.ph].name}),
-          el("span",{class:"wdate mono",text:md(w.start)+"–"+md(dates[6])}),
-          isNow ? el("span",{class:"wnow",text:"今週"}) : null,
-        ),
-      ),
-      dots,
-      el("span",{class:"wscore mono" + (ws.score==null ? "" : (ws.score>=80?" pass":" fail")),
-                 text: ws.score==null ? "—" : ws.score+"%"}),
-    );
-    sched.append(row);
+          el("span",{class:"ph",style:cvar,text:PHASE[w.ph].name}),
+          el("span",{text:md(w.start)+"–"+md(dates[6])}),
+          w.n===now ? el("span",{class:"wnow",text:"今週"}) : null)),
+      beads,
+      el("span",{class:"wscore" + (pct==null?"":(pct>=80?" pass":" fail")),
+                 text: pct==null ? "—" : pct+"%"}),
+    ));
 
     if(open){
       const det = el("div",{class:"wdetail",style:cvar});
-      det.append(el("p",{class:"note",style:"margin:0 0 10px",text:w.note}));
-      const list = el("ol",{class:"dlist"});
+      det.append(el("p",{class:"note",style:"margin:8px 0 12px",text:w.note}));
+      const ol = el("ol",{class:"dlist"});
       tasksOf(w).forEach((t,i)=>{
-        list.append(el("li",{class: ws.d[i] ? "done" : ""},
-          el("span",{class:"dl-day mono",text:DOW[i]+" "+md(dates[i])}),
-          el("span",{class:"dl-task",text:t}),
-        ));
+        ol.append(el("li",{class: ws.d[i] ? "done" : ""},
+          el("span",{class:"dl-day",text:DOW[i]+" "+md(dates[i])}),
+          el("span",{class:"dl-task",text:t})));
       });
-      det.append(list);
-      det.append(el("p",{class:"eyebrow",style:"margin:12px 0 4px",text:"合格条件"}));
-      const cl = el("ul",{class:"clist"});
-      condsOf(w).forEach((c,i)=>cl.append(el("li",{class: ws.c[i] ? "done":"", text:c})));
-      det.append(cl);
-      det.append(el("div",{style:"display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"},
-        el("span",{class:"note",style:"flex:1;min-width:120px"}, "Anki目安：" + PHASE[w.ph].anki),
-        el("button",{class:"btn primary",onclick:(ev)=>{
-          ev.stopPropagation();
-          shownWeek=w.n; editMode=false; setView("week"); window.scrollTo({top:0});
-        }},"この週を開く"),
-      ));
-      sched.append(det);
+      det.append(ol);
+      det.append(el("p",{class:"hd",style:"margin:16px 0 5px",text:"合格条件"}));
+      const ul = el("ul",{class:"clist"});
+      condsOf(w).forEach((c,i)=>ul.append(el("li",{class: ws.c[i]?"done":"", text:c})));
+      det.append(ul);
+      det.append(el("div",{style:"display:flex;gap:12px;margin-top:14px;align-items:center;flex-wrap:wrap"},
+        el("span",{class:"muted",style:"flex:1;min-width:140px",text:"Anki　"+PHASE[w.ph].anki}),
+        el("button",{class:"btn",onclick:ev=>{
+          ev.stopPropagation(); shownWeek=w.n; editMode=false; setView("week"); window.scrollTo({top:0});
+        }},"この週を開く")));
+      box.append(det);
     }
   });
-  sc.append(sched);
-  sc.append(el("p",{class:"note",style:"margin-top:12px"},
-    "行をタップすると7日分が開く。左端の色が分野、右の点が消化した日、いちばん右が週末チェックの正答率。赤い線は終わったのに5日未満しか消化していない週。"));
-  root.append(sc);
-
-  /* リスク */
-  const risk = el("section",{class:"card"});
-  risk.append(el("p",{class:"eyebrow",text:"12月上旬に判断すること"}),
-    el("p",{style:"margin-bottom:6px"},"第18週（12/28–1/3）の高分子が年末年始と重なる。"),
-    el("p",{class:"note",style:"margin:0"},"第15〜17週（有機）が順調なら1週前倒しし、12/21–12/27に高分子、12/28–1/3を化学基礎〜理論の総点検に充てるほうが安全。各週の「内容を編集」でタスクを差し替えられる。"));
-  root.append(risk);
+  return sec(null, box, el("p",{class:"muted",style:"margin-top:14px"},
+    "行をひらくと7日分が出る。左の細い線が分野、点が消化した日、右端が週末チェック。終わったのに5日未満の週は番号が朱くなる。"));
 }
 
-/* --- 誤答記録 --- */
+/* 工程表（案D） */
+function gantt(today){
+  const start = parse(WEEKS[0].start);
+  const end = addDays(parse(WEEKS[25].start), 6);
+  const span = Math.round((end - start)/86400000) + 1;
+  const pos = ds => ((parse(ds) - start)/86400000) / span * 100;
+
+  const wrap = el("div",{class:"gantt"});
+  const inner = el("div",{class:"gantt-in"});
+
+  /* 月の目盛 */
+  const months = el("div",{class:"g-months"});
+  let cur = new Date(start.getFullYear(), start.getMonth(), 1);
+  while(cur <= end){
+    if(cur >= start) months.append(el("span",{class:"g-mon",
+      style:`left:${((cur-start)/86400000)/span*100}%`, text:(cur.getMonth()+1)+"月"}));
+    cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
+  }
+  inner.append(el("div",{class:"g-scale"}, el("span",{}), months));
+
+  /* 分野ごとに1行 */
+  const rows = [];
+  WEEKS.forEach(w=>{
+    const last = rows[rows.length-1];
+    if(last && last.ph === w.ph && last.to === w.n-1){ last.to = w.n; }
+    else rows.push({ph:w.ph, from:w.n, to:w.n});
+  });
+
+  rows.forEach(r=>{
+    const w0 = WEEKS[r.from-1], w1 = WEEKS[r.to-1];
+    const s0 = w0.start, s1 = ymd(addDays(parse(w1.start),6));
+    const left = pos(s0), right = pos(s1);
+    let dTot = 0, dDone = 0;
+    for(let n=r.from;n<=r.to;n++){ dTot += 7; dDone += wk(n).d.filter(Boolean).length; }
+    const track = el("div",{class:"g-track"});
+    const bar = el("div",{class:"g-bar",style:`left:${left}%;width:${Math.max(right-left,1.2)}%`});
+    bar.append(el("div",{class:"g-fill",style:`width:${dTot?dDone/dTot*100:0}%`}));
+    track.append(bar);
+    if(diffDays(WEEKS[0].start,today) >= 0 && diffDays(today, s1) >= -400){
+      // 今日の線は最後にまとめて引く
+    }
+    rows.indexOf(r);
+    inner.append(el("div",{class:"g-row",style:`--c:var(${PHASE[r.ph].v})`},
+      el("span",{class:"g-name",text:PHASE[r.ph].name + "　" + r.from + (r.to!==r.from ? "–"+r.to : "")}),
+      track));
+  });
+
+  /* 今日の線 */
+  const todayPos = pos(today);
+  if(todayPos >= 0 && todayPos <= 100){
+    const overlay = el("div",{class:"g-row",style:"position:relative;height:0;padding:0"});
+    overlay.append(el("span",{}), el("div",{style:"position:relative;height:0"}));
+    inner.style.position = "relative";
+    const line = el("div",{class:"g-now",style:`left:calc(104px + 12px + (100% - 116px) * ${todayPos/100})`});
+    inner.append(line);
+  }
+  wrap.append(inner);
+  return sec(null, wrap, el("p",{class:"muted",style:"margin-top:12px"},
+    "分野ごとの帯。濃い部分が消化した割合。朱い線が今日の位置。"));
+}
+
+/* ---------------- 誤答 ---------------- */
 function nextStep(e){ for(let i=0;i<3;i++) if(!e.r[i]) return i; return 2; }
-function stepDue(e, i){
+function stepDue(e,i){
   if(i===0) return addDays(parse(e.date),1);
   if(i===1) return e.r[0] ? addDays(parse(e.r[0]),7) : null;
-  return null; // 章末の週末チェック＝手動
+  return null;
 }
 function dueToday(){
   const t = parse(todayStr());
   return state.errors.filter(e=>{
     if(e.cleared) return false;
-    const i = nextStep(e);
-    if(i>2) return false;
-    const d = stepDue(e,i);
-    return d && d <= t;
+    const i = nextStep(e); if(i>2) return false;
+    const d = stepDue(e,i); return d && d <= t;
   });
 }
-function markStep(id, i){
+function markStep(id,i){
   const e = state.errors.find(x=>x.id===id); if(!e) return;
   e.r[i] = todayStr();
-  if(e.r[0] && e.r[1] && e.r[2]) e.cleared = true;
+  if(e.r[0]&&e.r[1]&&e.r[2]) e.cleared = true;
   persist(); render();
 }
-function unmarkStep(id, i){
+function unmarkStep(id,i){
   const e = state.errors.find(x=>x.id===id); if(!e) return;
-  e.r[i] = null; e.cleared = false; persist(); render();
+  e.r[i]=null; e.cleared=false; persist(); render();
 }
 function resetEntry(id){
   const e = state.errors.find(x=>x.id===id); if(!e) return;
-  e.date = todayStr(); e.r = [null,null,null]; e.cleared = false;
-  persist(); render();
+  e.date = todayStr(); e.r=[null,null,null]; e.cleared=false; persist(); render();
+}
+function addError(ref, cause, date){
+  state.errors.unshift({id:"e"+Date.now()+Math.random().toString(36).slice(2,6),
+    ref, date: date||todayStr(), cause, r:[null,null,null], cleared:false, wk:currentWeekNo()});
+  state.meta.lastRef = ref.replace(/[0-9０-９]+\s*$/,"");
+  persist();
 }
 
-let newCause = "知識";
+/* どこからでも開ける記録シート */
+function openErrorSheet(){
+  const sh = document.getElementById("sheet");
+  sh.textContent = ""; sh.hidden = false;
+  let cause = CAUSES[0].k;
+  const inp = el("input",{type:"text",placeholder:"基礎問12 / 重問A45"});
+  inp.value = state.meta.lastRef || "";
+  const seg = el("div",{class:"seg",style:"display:flex;width:100%"});
+  const paint = ()=>[...seg.children].forEach((b,i)=>b.setAttribute("aria-pressed", String(CAUSES[i].k===cause)));
+  CAUSES.forEach(c=>seg.append(el("button",{type:"button",onclick:()=>{ cause=c.k; paint(); }},c.label)));
+  paint();
+  const close = ()=>{ sh.hidden = true; sh.textContent=""; };
+  const save = ()=>{
+    const ref = inp.value.trim(); if(!ref){ inp.focus(); return; }
+    addError(ref, cause); close(); render(); toast("記録しました");
+  };
+  inp.addEventListener("keydown",ev=>{ if(ev.key==="Enter") save(); });
+  const card = el("div",{class:"sheet-in"},
+    el("p",{class:"hd",style:"margin-bottom:14px",text:"誤答を記録する"}),
+    el("label",{class:"fld",text:"問題番号"}), inp,
+    el("p",{class:"fld",style:"margin:16px 0 5px",text:"原因"}), seg,
+    el("p",{class:"muted",style:"margin:14px 0 0"},"「知識不足」のものだけ、あとでAnkiカードにする。"),
+    el("div",{style:"display:flex;gap:9px;margin-top:20px"},
+      el("button",{class:"btn primary",style:"flex:1",onclick:save},"記録する"),
+      el("button",{class:"btn",onclick:close},"やめる")),
+  );
+  sh.append(card);
+  sh.addEventListener("click", ev=>{ if(ev.target===sh) close(); });
+  setTimeout(()=>inp.focus(), 30);
+}
+
 function renderErr(){
   const root = document.getElementById("viewErr");
   root.textContent = "";
-
-  /* 追加フォーム */
-  const add = el("section",{class:"card"});
-  add.append(el("p",{class:"eyebrow",text:"誤答を記録する"}));
-  const refIn = el("input",{type:"text",placeholder:"基礎問12 / 重問A45 など"});
-  const dateIn = el("input",{type:"date"}); dateIn.value = todayStr();
-  const seg = el("div",{class:"seg"});
-  CAUSES.forEach(c=>{
-    const b = el("button",{style:`--c:var(${c.v})`,"aria-pressed": String(c.k===newCause), onclick:()=>{ newCause=c.k; render(); }}, c.label);
-    seg.append(b);
-  });
-  add.append(
-    el("div",{class:"row"},
-      el("div",{style:"flex:2"}, el("label",{class:"fld",text:"問題番号"}), refIn),
-      el("div",{}, el("label",{class:"fld",text:"日付"}), dateIn),
-    ),
-    el("div",{style:"margin-top:10px"}, el("label",{class:"fld",text:"原因（3分類）"}), seg),
-    el("button",{class:"btn primary",style:"margin-top:12px",onclick:()=>{
-      const ref = refIn.value.trim();
-      if(!ref){ refIn.focus(); return; }
-      state.errors.unshift({
-        id: "e" + Date.now() + Math.random().toString(36).slice(2,6),
-        ref, date: dateIn.value || todayStr(), cause: newCause,
-        r:[null,null,null], cleared:false, wk: currentWeekNo(),
-      });
-      persist(); render();
-    }},"記録する"),
-    el("p",{class:"muted",style:"margin:10px 0 0"},"原因が「知識不足」のものだけ、その知識を切り出してAnkiカードにする。"),
-  );
-  root.append(add);
-
-  /* 集計 */
-  const live = state.errors.filter(e=>!e.cleared);
-  const counts = CAUSES.map(c=>({c, n: state.errors.filter(e=>e.cause===c.k).length}));
+  const counts = CAUSES.map(c=>({c, n:state.errors.filter(e=>e.cause===c.k).length}));
   const total = counts.reduce((a,b)=>a+b.n,0);
   const top = counts.slice().sort((a,b)=>b.n-a.n)[0];
+  const live = state.errors.filter(e=>!e.cleared);
 
-  const ag = el("section",{class:"card"});
-  ag.append(el("p",{class:"eyebrow",text:"分類の偏り"}),
-    el("p",{class:"muted",style:"margin-bottom:12px"},"2月はこの偏りが対策を決める。多い分類にだけ手を打つ。"));
   const bars = el("div",{class:"bars"});
   counts.forEach(({c,n})=>{
-    bars.append(el("div",{class:"bar",style:`--c:var(${c.v})`},
+    bars.append(el("div",{class:"bar2",style:`--c:var(${c.v})`},
       el("span",{text:c.label}),
-      el("div",{class:"track2"}, el("div",{class:"t",style:`width:${total? (n/total*100):0}%`})),
-      el("span",{class:"v",text:String(n)}),
-    ));
+      el("div",{class:"tr2"}, el("div",{class:"t2",style:`width:${total?n/total*100:0}%`})),
+      el("span",{class:"v2",text:String(n)})));
   });
-  ag.append(bars);
-  if(total >= 3 && top.n > 0){
-    ag.append(el("div",{class:"verdict",style:"margin-top:14px"},
-      el("b",{text:"最多は「"+top.c.label+"」。"}), " やること：" + top.c.fix + "　／　やってはいけない：" + top.c.ng));
-  }
-  ag.append(el("p",{class:"muted",style:"margin-top:12px"},
-    "記録 " + state.errors.length + " 件（未クリア " + live.length + " 件）。3回連続正解で記録から外れる。"));
-  root.append(ag);
+  const agg = sec("分類の偏り", bars,
+    total>=3 && top.n>0
+      ? el("p",{class:"verdict",style:"margin-top:16px"},
+          el("b",{text:"最も多いのは「"+top.c.label+"」。"}),
+          " やること：" + top.c.fix + "　／　やってはいけない：" + top.c.ng)
+      : el("p",{class:"muted",style:"margin-top:14px"},"3件たまると、多い分類に応じた対処を出す。"),
+    el("p",{class:"muted",style:"margin-top:12px",
+      text:"記録 "+state.errors.length+"件（未クリア "+live.length+"件）。3回続けて正解で外れる。"}));
+  root.append(agg);
 
-  /* 一覧 */
-  const list = el("section",{class:"card"});
-  list.append(el("p",{class:"eyebrow",text:"記録一覧"}));
-  if(!state.errors.length){
-    list.append(el("p",{class:"muted",style:"margin:0"},"まだ記録がありません。"));
-  }
+  const list = el("div",{});
   const t = parse(todayStr());
+  if(!state.errors.length) list.append(el("p",{class:"muted",style:"margin:0"},"まだ記録がありません。右下の「＋誤答」から。"));
   state.errors.forEach(e=>{
     const c = CAUSES.find(x=>x.k===e.cause) || CAUSES[0];
     const steps = el("div",{class:"steps"});
     ["翌日","1週","章末"].forEach((lab,i)=>{
-      const dueD = stepDue(e,i);
-      const isDue = !e.cleared && !e.r[i] && nextStep(e)===i && dueD && dueD<=t;
-      const b = el("button",{
-        class:"step" + (e.r[i]?" ok":"") + (isDue?" due":""),
+      const dd = stepDue(e,i);
+      const isDue = !e.cleared && !e.r[i] && nextStep(e)===i && dd && dd<=t;
+      steps.append(el("button",{class:"step"+(e.r[i]?" ok":"")+(isDue?" due":""),
         title: e.r[i] ? lab+"：正解 "+md(e.r[i]) : lab,
-        onclick:()=> e.r[i] ? unmarkStep(e.id,i) : markStep(e.id,i),
-      }, e.r[i] ? "✓" : lab);
-      steps.append(b);
+        onclick:()=> e.r[i] ? unmarkStep(e.id,i) : markStep(e.id,i)}, e.r[i] ? "✓" : lab));
     });
-    list.append(el("div",{class:"err" + (e.cleared?" cleared":"")},
-      el("div",{class:"err-main"},
-        el("div",{class:"err-ref mono",text:e.ref}),
-        el("div",{class:"err-sub mono"}, "誤答 " + md(e.date) + "　第" + (e.wk||"?") + "週"),
-      ),
-      el("span",{class:"cause",style:`--c:var(${c.v})`,text:c.label}),
-      steps,
-      el("button",{class:"btn danger",onclick:()=>{
-        if(!confirm("この記録を削除しますか？")) return;
-        state.errors = state.errors.filter(x=>x.id!==e.id); persist(); render();
-      }},"削除"),
-    ));
+    list.append(el("div",{class:"err"+(e.cleared?" cleared":"")},
+      el("div",{},
+        el("div",{class:"err-ref",text:e.ref}),
+        el("div",{class:"err-sub"}, md(e.date)+"　第"+(e.wk||"?")+"週　",
+          el("span",{class:"cause",style:`--c:var(${c.v})`,text:c.label}))),
+      el("div",{style:"display:flex;gap:10px;align-items:center"}, steps,
+        el("button",{class:"xdel",title:"削除",onclick:()=>{
+          if(!confirm("この記録を削除しますか。")) return;
+          state.errors = state.errors.filter(x=>x.id!==e.id); persist(); render();
+        }},"×"))));
   });
-  root.append(list);
+  root.append(sec("記録", list));
 }
 
-/* --- ルール --- */
+/* ---------------- ルール ---------------- */
+function fold(title, ...body){
+  return el("details",{class:"fold"}, el("summary",{text:title}),
+    el("div",{class:"body"}, body.flat()));
+}
 function renderRule(){
   const root = document.getElementById("viewRule");
   root.textContent = "";
 
-  const a = el("section",{class:"card"});
-  a.append(el("p",{class:"eyebrow",text:"目標"}),
-    el("h2",{text:"8割死守、あわよくば9割"}),
-    el("p",{class:"muted"},"独学・初学・半年・1日90分では満点は届かない。だから網羅ではなく「落としてはいけない問題を絶対に落とさない」設計にしてある。"),
-    el("p",{style:"margin-top:10px"},"優先順位　", el("b",{class:"mono",text:"理論 > 有機 > 無機 > 高分子"})),
-    el("ul",{class:"tight",style:"margin-top:8px"},
-      el("li",{text:"基礎問題精講のレベルを100%にする（ここだけで6〜7割）"}),
-      el("li",{text:"重要問題集B問題で応用に慣れる（8割の上積みはここ）"}),
-      el("li",{text:"計算ミスを技術として潰す（9割を阻む最大要因は知識不足ではなく計算ミス）"}),
-    ));
-  root.append(a);
+  root.append(sec("目標",
+    el("h2",{text:"八割死守、あわよくば九割"}),
+    el("p",{class:"note",style:"margin-top:12px"},
+      "独学・初学・半年・1日90分では満点は届かない。だから網羅ではなく、落としてはいけない問題を落とさない設計にしてある。"),
+    el("p",{class:"note",style:"margin-bottom:0"},"優先順位　理論 ＞ 有機 ＞ 無機 ＞ 高分子")));
 
-  const b = el("section",{class:"card"});
-  b.append(el("p",{class:"eyebrow",text:"週の型（1日90分想定）"}),
-    el("ul",{class:"tight"},
-      el("li",{},el("b",{text:"月〜木　"}),"よくわかるを読む（30分）＋ 基礎問題精講（60分）"),
-      el("li",{},el("b",{text:"金・土　"}),"問題演習（基礎問／重要問題集）"),
-      el("li",{},el("b",{text:"日　　　"}),"週末チェック — その週の基礎問を白紙で解き直す"),
-    ),
-    el("hr",{class:"hair"}),
-    el("p",{class:"eyebrow",text:"週末チェックの判定（動かさない）"}),
-    el("ul",{class:"tight"},
-      el("li",{},"8割以上 → 次の章へ進む"),
-      el("li",{},el("b",{text:"8割未満 → 次の章へ進まず、1週かけて補修する"})),
-    ),
-    el("p",{class:"muted",style:"margin:0"},"この判定を守るかどうかが6ヶ月後の差になる。"));
-  root.append(b);
+  const r = el("div",{});
+  r.append(
+    fold("週の型（1日90分）",
+      el("ul",{class:"tight"},
+        el("li",{},el("b",{text:"月〜木　"}),"よくわかるを読む（30分）＋ 基礎問題精講（60分）"),
+        el("li",{},el("b",{text:"金・土　"}),"問題演習（基礎問／重要問題集）"),
+        el("li",{},el("b",{text:"日　　　"}),"週末チェック — その週の基礎問を白紙で解き直す"))),
+    fold("週末チェックの判定（動かさない）",
+      el("ul",{class:"tight"},
+        el("li",{text:"8割以上 → 次の章へ進む"}),
+        el("li",{},el("b",{text:"8割未満 → 次の章へ進まず、1週かけて補修する"}))),
+      el("p",{class:"muted",style:"margin:0"},"この判定を守るかどうかが6ヶ月後の差になる。")),
+    fold("八割を守る三原則",
+      el("ul",{class:"tight"},
+        el("li",{text:"基礎問題精講のレベルを100%にする（ここだけで6〜7割）"}),
+        el("li",{text:"重要問題集B問題で応用に慣れる（8割の上積みはここ）"}),
+        el("li",{text:"計算ミスを技術として潰す（9割を阻む最大要因は知識不足ではなく計算ミス）"}))),
+    fold("Anki に入れるもの・入れないもの",
+      el("p",{style:"margin-bottom:6px"},el("b",{text:"入れる"}),"（5秒以内に一つの答えが出るか）"),
+      el("ul",{class:"tight"},
+        el("li",{text:"化学反応式（「銅と濃硝酸 → ?」で式全体を書く）"}),
+        el("li",{text:"沈殿・溶液の色（「Cu²⁺ に過剰のアンモニア水 → ?」）"}),
+        el("li",{text:"気体の製法と捕集法"}),
+        el("li",{text:"有機の反応系統・検出反応"}),
+        el("li",{text:"定数・法則の定義文（自分の言葉で）"})),
+      el("p",{style:"margin-bottom:6px"},el("b",{text:"入れない"})),
+      el("ul",{class:"tight"},
+        el("li",{text:"計算問題 — 手続き的知識。問題集の周回で処理する"}),
+        el("li",{text:"長い説明・図の理解、「〜について説明せよ」型"}),
+        el("li",{text:"ページ番号・問題番号 — 手がかりと想起対象がずれる"}))),
+    fold("新規カードの目安", ankiTable(),
+      el("p",{class:"muted",style:"margin-top:10px"},
+        "上限の目安は600〜900枚。超えたらカードを増やさず問題集を回す。12月上旬に無機期のレビュー爆発が来る。苦しければ保持率を90%→85%に下げると負荷が2〜3割減る。")),
+    fold("誤答分類 → 対処", causeTable()),
+    fold("この計画表の仕掛けについて",
+      el("p",{style:"margin-bottom:6px"},el("b",{text:"根拠が強いもの"})),
+      el("ul",{class:"tight"},
+        el("li",{text:"検索練習 — 日曜の白紙解き直し"}),
+        el("li",{text:"実行意図 — 「◯◯が終わったら◯◯をやる」。メタ分析で効果量 d ≈ 0.6 前後"}),
+        el("li",{text:"分散学習"})),
+      el("p",{style:"margin-bottom:6px"},el("b",{text:"根拠が弱いもの"})),
+      el("p",{class:"muted",style:"margin-bottom:12px"},
+        "チェックや進捗の塗りつぶしで達成感が出るという説明は俗流の脳科学。だから消化状況は達成感のためではなく、翌週の時間配分を決める記録として使う。"),
+      el("p",{style:"margin-bottom:6px"},el("b",{text:"意図的に入れなかったもの"})),
+      el("p",{class:"muted",style:"margin:0"},
+        "連続記録（ストリーク）。1日途切れた時点で全部やめる引き金になる。代わりに下の復帰ルールを置いてある。")),
+    fold("まだ片付いていないこと",
+      el("ul",{class:"tight"},
+        el("li",{text:"金沢大の赤本が未所有。直近6年分以上が要る"}),
+        el("li",{text:"大問構成の確認が未了。大問1〜5＋大問6（理系一括固有）という前提"}),
+        el("li",{text:"試験日程は例年からの見込み。募集要項で確定させる"}),
+        el("li",{text:"第18週の高分子を1週前倒しするかの判断（12月上旬）"}))),
+  );
+  root.append(sec("運用", r));
 
-  const c = el("section",{class:"card"});
-  c.append(el("p",{class:"eyebrow",text:"Anki の運用"}),
-    el("p",{style:"margin-bottom:4px"},el("b",{text:"入れる"}),"（判定基準：5秒以内に一つの答えが出るか）"),
-    el("ul",{class:"tight"},
-      el("li",{text:"化学反応式（「銅と濃硝酸 → ?」で式全体を書く）"}),
-      el("li",{text:"沈殿・溶液の色（「Cu²⁺ に過剰のアンモニア水 → ?」）"}),
-      el("li",{text:"気体の製法と捕集法"}),
-      el("li",{text:"有機の反応系統・検出反応"}),
-      el("li",{text:"定数・法則の定義文（自分の言葉で）"}),
-    ),
-    el("p",{style:"margin-bottom:4px"},el("b",{text:"入れない"})),
-    el("ul",{class:"tight"},
-      el("li",{text:"計算問題 — 手続き的知識。問題集の周回で処理する"}),
-      el("li",{text:"長い説明・図の理解、「〜について説明せよ」型"}),
-      el("li",{text:"ページ番号・問題番号 — 手がかりと想起対象がずれる"}),
-    ));
-  const tw = el("div",{class:"tbl-wrap"});
+  /* 自分で決めること */
+  const pl = el("textarea",{rows:"2",placeholder:"一つだけ書く。増やさない。"});
+  pl.value = state.meta.pledge || "";
+  pl.addEventListener("input",()=>{ state.meta.pledge = pl.value; persist(); });
+  const rec = el("div",{});
+  [0,1,2].forEach(i=>{
+    const inp = el("input",{type:"text",placeholder: i===0 ? "例：飛ばした翌日はAnkiだけやる" : ""});
+    inp.value = (state.meta.recovery||[])[i] || "";
+    inp.addEventListener("input",()=>{ state.meta.recovery[i]=inp.value; persist(); });
+    rec.append(el("div",{style:"margin-bottom:8px"}, inp));
+  });
+  root.append(sec("この六ヶ月で自分が守ること", pl));
+  root.append(sec("崩れた日の復帰ルール",
+    el("p",{class:"note"},"計画が壊れるのは飛ばした日ではなく、飛ばした翌日の判断で決まる。"), rec));
+
+  const kIn = el("input",{type:"date"}); kIn.value = state.meta.examK;
+  kIn.addEventListener("change",()=>{ state.meta.examK=kIn.value; persist(); render(); });
+  const nIn = el("input",{type:"date"}); nIn.value = state.meta.examN;
+  nIn.addEventListener("change",()=>{ state.meta.examN=nIn.value; persist(); render(); });
+  root.append(sec("試験日（見込み。募集要項が出たら直す）",
+    el("div",{class:"row"},
+      el("div",{}, el("label",{class:"fld",text:"共通テスト 初日"}), kIn),
+      el("div",{}, el("label",{class:"fld",text:"二次試験 初日"}), nIn))));
+}
+function ankiTable(){
+  const wrap = el("div",{class:"tbl-wrap"});
   const tb = el("table");
   tb.append(el("thead",{},el("tr",{},el("th",{text:"時期"}),el("th",{text:"新規"}),el("th",{text:"備考"}))));
-  const tbody = el("tbody");
+  const b = el("tbody");
   [["化学基礎（1–5週）","5〜10枚/日",""],
    ["理論化学（6–12週）","0〜10枚/日","法則の定義文のみ。ここで溜め込まない"],
    ["無機化学（13–14週）","30〜40枚/日","最大の山。この2週だけAnkiに25〜30分"],
    ["有機化学（15–17週）","20枚/日",""],
    ["高分子（18週）","25〜30枚/日",""],
    ["1月の維持期","0枚","レビューのみ。1日15分"],
-   ["2月の演習期","0〜5枚/日","誤答の「知識不足」から抽出した分だけ"]].forEach(r=>{
-    tbody.append(el("tr",{},el("td",{text:r[0]}),el("td",{class:"num",text:r[1]}),el("td",{class:"muted",text:r[2]})));
-  });
-  tb.append(tbody); tw.append(tb); c.append(tw);
-  c.append(el("p",{class:"muted",style:"margin-top:8px"},
-    "上限の目安は600〜900枚。超えたらカードを増やさず問題集を回す。12月上旬に無機期のレビュー爆発が来る — 苦しければ保持率を90%→85%に下げると負荷が2〜3割減る。"));
-  root.append(c);
-
-  const d = el("section",{class:"card"});
-  d.append(el("p",{class:"eyebrow",text:"誤答分類 → 対処"}));
-  const tw2 = el("div",{class:"tbl-wrap"});
-  const tb2 = el("table");
-  tb2.append(el("thead",{},el("tr",{},el("th",{text:"最多の分類"}),el("th",{text:"やること"}),el("th",{text:"やってはいけないこと"}))));
-  const tb2b = el("tbody");
-  CAUSES.forEach(x=>{
-    tb2b.append(el("tr",{},
-      el("td",{}, el("span",{class:"cause",style:`--c:var(${x.v})`,text:x.label})),
-      el("td",{text:x.fix}),
-      el("td",{class:"muted",text:x.ng})));
-  });
-  tb2.append(tb2b); tw2.append(tb2); d.append(tw2);
-  root.append(d);
-
-  /* 表紙の記入欄 */
-  const e2 = el("section",{class:"card"});
-  e2.append(el("p",{class:"eyebrow",text:"この6ヶ月で自分が守ること"}));
-  const pl = el("textarea",{rows:"3",placeholder:"一つだけ書く。増やさない。"});
-  pl.value = state.meta.pledge || "";
-  pl.addEventListener("input",()=>{ state.meta.pledge = pl.value; persist(); });
-  e2.append(pl);
-  e2.append(el("p",{class:"eyebrow",style:"margin-top:18px",text:"崩れた日の復帰ルール"}),
-    el("p",{class:"muted",style:"margin-bottom:8px"},"計画が壊れるのは飛ばした日ではなく、飛ばした翌日の判断で決まる。だから連続記録は置いていない。"));
-  [0,1,2].forEach(i=>{
-    const inp = el("input",{type:"text",placeholder:"例：飛ばした翌日はAnkiだけやる"});
-    inp.value = (state.meta.recovery||[])[i] || "";
-    inp.addEventListener("input",()=>{ state.meta.recovery[i] = inp.value; persist(); });
-    e2.append(el("div",{style:"margin-bottom:7px"}, inp));
-  });
-  root.append(e2);
-
-  /* 試験日 */
-  const f = el("section",{class:"card"});
-  f.append(el("p",{class:"eyebrow",text:"試験日（未確定。募集要項が出たら直す）"}),
-    el("div",{class:"row"},
-      el("div",{}, el("label",{class:"fld",text:"共通テスト 初日"}), (()=>{
-        const i = el("input",{type:"date"}); i.value = state.meta.examK;
-        i.addEventListener("change",()=>{ state.meta.examK=i.value; persist(); render(); }); return i;
-      })()),
-      el("div",{}, el("label",{class:"fld",text:"二次試験 初日"}), (()=>{
-        const i = el("input",{type:"date"}); i.value = state.meta.examN;
-        i.addEventListener("change",()=>{ state.meta.examN=i.value; persist(); render(); }); return i;
-      })()),
-    ));
-  root.append(f);
-
-  /* 正直な注記 */
-  const g = el("section",{class:"card"});
-  g.append(el("p",{class:"eyebrow",text:"この計画表の仕掛けについて"}),
-    el("p",{style:"margin-bottom:8px"},el("b",{text:"根拠が強いもの"})),
-    el("ul",{class:"tight"},
-      el("li",{text:"検索練習（retrieval practice）— 日曜の白紙解き直し"}),
-      el("li",{text:"実行意図（implementation intentions）— 「◯◯が終わったら◯◯をやる」。メタ分析で効果量 d ≈ 0.6 前後"}),
-      el("li",{text:"分散学習"}),
-    ),
-    el("p",{style:"margin-bottom:8px"},el("b",{text:"根拠が弱いもの"})),
-    el("p",{class:"muted",style:"margin-bottom:10px"},"チェックや進捗の塗りつぶしで「達成感が出る」「ドーパミンが出る」という説明は俗流の脳科学。だから消化状況は達成感のためではなく、翌週の時間配分を決める記録として使う。"),
-    el("p",{style:"margin-bottom:8px"},el("b",{text:"意図的に入れなかったもの"})),
-    el("p",{class:"muted",style:"margin:0"},"連続記録（ストリーク）。1日途切れた時点で全部やめる引き金になる。代わりに上の復帰ルールを置いてある。"));
-  root.append(g);
-
-  const h = el("section",{class:"card"});
-  h.append(el("p",{class:"eyebrow",text:"まだ片付いていないこと"}),
-    el("ul",{class:"tight"},
-      el("li",{text:"金沢大の赤本が未所有。直近6年分以上が要る（第23〜25週で6年分を解く前提）"}),
-      el("li",{text:"大問構成の確認が未了。大問1〜5＋大問6（理系一括固有）という前提で計画している"}),
-      el("li",{text:"試験日程は例年からの見込み。募集要項で確定させる"}),
-      el("li",{text:"第18週の高分子を1週前倒しするかの判断（12月上旬）"}),
-    ));
-  root.append(h);
+   ["2月の演習期","0〜5枚/日","誤答の「知識不足」から抽出した分だけ"]]
+   .forEach(r=>b.append(el("tr",{},el("td",{text:r[0]}),el("td",{text:r[1]}),el("td",{class:"muted",text:r[2]}))));
+  tb.append(b); wrap.append(tb); return wrap;
+}
+function causeTable(){
+  const wrap = el("div",{class:"tbl-wrap"});
+  const tb = el("table");
+  tb.append(el("thead",{},el("tr",{},el("th",{text:"最多の分類"}),el("th",{text:"やること"}),el("th",{text:"やってはいけないこと"}))));
+  const b = el("tbody");
+  CAUSES.forEach(x=>b.append(el("tr",{},
+    el("td",{}, el("span",{class:"cause",style:`--c:var(${x.v})`,text:x.label})),
+    el("td",{text:x.fix}), el("td",{class:"muted",text:x.ng}))));
+  tb.append(b); wrap.append(tb); return wrap;
 }
 
-/* --- 設定 --- */
-async function copy(text, label){
-  try{ await navigator.clipboard.writeText(text); toast(label + "をコピーしました"); }
-  catch(e){ toast("コピーできませんでした。長押しで選択してください"); }
-}
-
+/* ---------------- 設定 ---------------- */
 function renderSet(){
   const root = document.getElementById("viewSet");
   root.textContent = "";
 
-  /* アカウント */
-  const sc = el("section",{class:"card"});
-  sc.append(el("p",{class:"eyebrow",text:"記録の保存先"}));
   if(Store.account){
-    sc.append(
-      el("p",{style:"margin-bottom:4px"},"記録は", el("b",{text:"クラウド"}),"に保存されています。"),
-      el("p",{class:"muted",style:"margin-bottom:14px"},
-        "この端末には残りません。PCでもスマホでも、同じアカウントでログインすれば同じ内容が出ます。" +
-        "圏外のときは一時的に端末内に貯めて、つながった時点で送ります。"),
+    root.append(sec("記録の保存先",
+      el("p",{class:"note"},"記録はクラウドにある。この端末には残らない。同じアカウントで開けば、どの端末でも同じ内容になる。圏外のときは一時的に端末へ貯め、つながった時点で送る。"),
       el("div",{class:"acct"},
         el("div",{class:"acct-label",text:"ログイン中"}),
-        el("div",{class:"acct-mail mono",text:Store.account}),
-      ),
-      el("button",{class:"btn danger",style:"margin-top:12px",onclick:()=>{ if(Store.signOut) Store.signOut(); }},"ログアウト"),
-    );
+        el("div",{class:"acct-mail",text:Store.account})),
+      el("button",{class:"btn danger",style:"margin-top:14px",onclick:()=>{ if(Store.signOut) Store.signOut(); }},"ログアウト")));
   }else{
-    sc.append(el("div",{class:"verdict"},"まだログインしていません。"));
+    root.append(sec("記録の保存先", el("p",{class:"verdict"},"まだログインしていません。")));
   }
-  root.append(sc);
 
-  /* バックアップ */
-  const bc = el("section",{class:"card"});
-  bc.append(el("p",{class:"eyebrow",text:"バックアップ"}),
-    el("p",{class:"muted",style:"margin-bottom:12px"},"ブラウザの履歴を消すと記録も消えます。ときどき書き出しておくと安全です。"),
-    el("div",{style:"display:flex;gap:8px;flex-wrap:wrap"},
+  root.append(sec("書き出しと読み込み",
+    el("p",{class:"note"},"操作ミスに備えて、ときどき書き出しておくと安全。"),
+    el("div",{style:"display:flex;gap:9px;flex-wrap:wrap"},
       el("button",{class:"btn",onclick:()=>{
         const blob = new Blob([JSON.stringify(exportState(),null,1)],{type:"application/json"});
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = "chem-plan-" + todayStr() + ".json";
-        a.click();
-        setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+        a.download = "chem-plan-"+todayStr()+".json"; a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href),2000);
       }},"JSONで書き出す"),
       (()=>{
         const f = el("input",{type:"file",accept:"application/json,.json",style:"display:none"});
-        f.addEventListener("change", ()=>{
+        f.addEventListener("change",()=>{
           const file = f.files && f.files[0]; if(!file) return;
-          const r = new FileReader();
-          r.onload = ()=>{
-            try{ importState(JSON.parse(String(r.result))); }
-            catch(e){ toast("読み込めませんでした：" + e.message); }
-          };
-          r.readAsText(file);
-          f.value = "";
+          const rd = new FileReader();
+          rd.onload = ()=>{ try{ importState(JSON.parse(String(rd.result))); }
+                            catch(e){ toast("読み込めませんでした："+e.message); } };
+          rd.readAsText(file); f.value = "";
         });
-        const b = el("button",{class:"btn",onclick:()=>f.click()},"JSONを読み込む");
-        return el("span",{}, b, f);
-      })(),
-    ));
-  root.append(bc);
+        return el("span",{}, el("button",{class:"btn",onclick:()=>f.click()},"JSONを読み込む"), f);
+      })())));
 
-  /* 表示 */
-  const tc = el("section",{class:"card"});
-  tc.append(el("p",{class:"eyebrow",text:"表示"}));
   const cur = (()=>{ try{ return localStorage.getItem("chem:theme") || "auto"; }catch(e){ return "auto"; } })();
-  const seg = el("div",{class:"seg",style:"--c:var(--ph-kiso)"});
+  const seg = el("div",{class:"seg"});
   [["auto","端末に合わせる"],["light","明るい"],["dark","暗い"]].forEach(([k,label])=>{
     seg.append(el("button",{"aria-pressed":String(k===cur),onclick:()=>{
-      try{ localStorage.setItem("chem:theme", k); }catch(e){}
+      try{ localStorage.setItem("chem:theme",k); }catch(e){}
       applyTheme(); render();
     }}, label));
   });
-  tc.append(seg);
-  tc.append(el("p",{class:"muted",style:"margin-top:14px"},
-    "ホーム画面に追加すると、アドレスバーなしのアプリとして開きます。iPhoneは共有ボタン →「ホーム画面に追加」、Androidはメニュー →「アプリをインストール」。"));
-  root.append(tc);
+  root.append(sec("表示", seg,
+    el("p",{class:"muted",style:"margin-top:14px"},
+      "ホーム画面に追加すると、アドレスバーなしで開く。iPhoneは共有ボタン →「ホーム画面に追加」、Androidはメニュー →「アプリをインストール」。")));
 
-  /* この計画について */
-  const ac = el("section",{class:"card"});
-  ac.append(el("p",{class:"eyebrow",text:"この計画表について"}),
+  root.append(sec("この計画表について",
     el("p",{class:"muted",style:"margin:0"},
-      "金沢大学 理系一括 二次試験 化学の6ヶ月計画（2026/8/31 – 2027/2/28、全26週）。目標は8割死守。" +
-      "内容はPDF版『金沢大_二次化学_6ヶ月計画ノート』と同一で、各週のタスクは「今週」タブの「内容を編集」から書き換えられます。"));
-  root.append(ac);
+      "金沢大学 理系一括 二次試験 化学の6ヶ月計画（2026/8/31 – 2027/2/28、全26週）。内容はPDF版と同一で、各週の「編集」から書き換えられる。")));
 }
-
 function applyTheme(){
   let t = "auto";
   try{ t = localStorage.getItem("chem:theme") || "auto"; }catch(e){}
-  if(t === "auto") document.documentElement.removeAttribute("data-theme");
+  if(t==="auto") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", t);
 }
 
-/* ============================================================
-   5. ルーティング
-   ============================================================ */
+/* ---------------- はじめの一度だけ ---------------- */
+function onboard(){
+  if(state.meta.onboarded) return;
+  const sh = document.getElementById("sheet");
+  sh.textContent = ""; sh.hidden = false;
+  const pl = el("textarea",{rows:"2",placeholder:"例：日曜の白紙チェックだけは何があってもやる"});
+  const rv = el("input",{type:"text",placeholder:"例：飛ばした翌日はAnkiだけやる"});
+  const done = ()=>{
+    state.meta.pledge = pl.value.trim();
+    state.meta.recovery[0] = rv.value.trim();
+    state.meta.onboarded = true;
+    persist(); sh.hidden = true; sh.textContent = ""; render();
+  };
+  sh.append(el("div",{class:"sheet-in"},
+    el("p",{class:"hd",style:"margin-bottom:16px",text:"はじめに、二つだけ"}),
+    el("p",{class:"note"},"守れる約束を一つと、崩れた日の戻り方を一つ。増やさないほうが続く。あとで「運用のルール」から直せる。"),
+    el("p",{class:"fld",style:"margin:18px 0 5px",text:"この六ヶ月で自分が守ること"}), pl,
+    el("p",{class:"fld",style:"margin:16px 0 5px",text:"崩れた日の復帰ルール"}), rv,
+    el("div",{style:"display:flex;gap:9px;margin-top:22px"},
+      el("button",{class:"btn primary",style:"flex:1",onclick:done},"はじめる"),
+      el("button",{class:"btn",onclick:()=>{ state.meta.onboarded=true; persist(); sh.hidden=true; sh.textContent=""; }},"あとで"))));
+}
+
+/* ---------------- ルーティング ---------------- */
+const VIEWS = {today:"viewToday", week:"viewWeek", all:"viewAll",
+               err:"viewErr", rule:"viewRule", set:"viewSet"};
+
 function setView(v){
   view = v;
-  document.querySelectorAll("nav.tabs button").forEach(b=>{
-    b.setAttribute("aria-selected", String(b.dataset.view === v));
-  });
+  document.querySelectorAll("nav.nav button").forEach(b=>
+    b.setAttribute("aria-selected", String(b.dataset.view===v)));
+  document.getElementById("menu").hidden = true;
+  document.getElementById("menuBtn").setAttribute("aria-expanded","false");
   render();
 }
 function render(){
-  document.getElementById("viewWeek").classList.toggle("hidden", view!=="week");
-  document.getElementById("viewAll").classList.toggle("hidden", view!=="all");
-  document.getElementById("viewErr").classList.toggle("hidden", view!=="err");
-  document.getElementById("viewRule").classList.toggle("hidden", view!=="rule");
-  document.getElementById("viewSet").classList.toggle("hidden", view!=="set");
-  if(view==="week") renderWeek();
+  for(const [k,id] of Object.entries(VIEWS)) document.getElementById(id).hidden = (k!==view);
+  document.getElementById("fab").hidden = !["today","week","all","err"].includes(view);
+  if(view==="today") renderToday();
+  else if(view==="week") renderWeek();
   else if(view==="all") renderAll();
   else if(view==="err") renderErr();
   else if(view==="rule") renderRule();
   else renderSet();
 }
 
-document.querySelectorAll("nav.tabs button").forEach(b=>{
-  b.addEventListener("click", ()=>setView(b.dataset.view));
+document.querySelectorAll("nav.nav button").forEach(b=>
+  b.addEventListener("click", ()=>setView(b.dataset.view)));
+
+const menuBtn = document.getElementById("menuBtn");
+const menuEl = document.getElementById("menu");
+menuBtn.addEventListener("click", ()=>{
+  const open = menuEl.hidden;
+  menuEl.hidden = !open;
+  menuBtn.setAttribute("aria-expanded", String(open));
+});
+document.addEventListener("click", ev=>{
+  if(!menuEl.hidden && !menuEl.contains(ev.target) && ev.target!==menuBtn){
+    menuEl.hidden = true; menuBtn.setAttribute("aria-expanded","false");
+  }
+});
+menuEl.querySelectorAll("button[data-go]").forEach(b=>
+  b.addEventListener("click", ()=>setView(b.dataset.go)));
+document.getElementById("printBtn").addEventListener("click", ()=>{
+  menuEl.hidden = true;
+  if(view!=="week"){ shownWeek = currentWeekNo(); setView("week"); }
+  setTimeout(()=>window.print(), 120);
+});
+document.getElementById("fab").addEventListener("click", openErrorSheet);
+document.addEventListener("keydown", ev=>{
+  if(ev.key==="Escape"){
+    const sh = document.getElementById("sheet");
+    if(!sh.hidden){ sh.hidden = true; sh.textContent=""; }
+  }
 });
 
-const syncBtn = document.getElementById("syncBtn");
-if(syncBtn) syncBtn.addEventListener("click", ()=>{ setView("set"); window.scrollTo({top:0}); });
-
 applyTheme();
-
+try{ localStorage.removeItem("chem:syncCode"); }catch(e){}
 shownWeek = currentWeekNo();
 render();
+setTimeout(onboard, 400);
