@@ -35,6 +35,13 @@
   </div>
 </header>
 
+<nav class="nav" role="tablist" aria-label="画面">
+  <button role="tab" data-view="today" aria-selected="true">今日</button>
+  <button role="tab" data-view="week" aria-selected="false">今週</button>
+  <button role="tab" data-view="all" aria-selected="false">全体</button>
+  <button role="tab" data-view="err" aria-selected="false">誤答</button>
+</nav>
+
 <div class="wrap">
   <main id="viewToday"></main>
   <main id="viewWeek" hidden></main>
@@ -44,12 +51,6 @@
   <main id="viewSet" hidden></main>
 </div>
 
-<nav class="nav" role="tablist" aria-label="画面">
-  <button role="tab" data-view="today" aria-selected="true">今日</button>
-  <button role="tab" data-view="week" aria-selected="false">今週</button>
-  <button role="tab" data-view="all" aria-selected="false">全体</button>
-  <button role="tab" data-view="err" aria-selected="false">誤答</button>
-</nav>
 
 <button class="fab" id="fab" type="button" aria-label="誤答を記録">＋ 誤答</button>
 

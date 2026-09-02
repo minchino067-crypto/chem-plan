@@ -96,9 +96,9 @@ body{
 .num{font-family:var(--ser);font-variant-numeric:tabular-nums;letter-spacing:.02em}
 
 /* ---------------- 骨格 ---------------- */
-.wrap{max-width:1120px;margin:0 auto;padding:0 20px 132px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px 96px}
 
-header.top{position:sticky;top:0;z-index:30;background:var(--washi)}
+header.top{background:var(--washi)}
 .top-in{
   max-width:1120px;margin:0 auto;padding:14px 20px 12px;
   display:flex;align-items:center;gap:12px;
@@ -132,41 +132,38 @@ header.top{position:sticky;top:0;z-index:30;background:var(--washi)}
 .dot.on{background:var(--good)}
 .dot.off{background:var(--bad)}
 
-/* 下の帯（スマホ）／上の並び（PC） */
+/* 切り替えは常に上。手が届く位置ではなく、目に入る位置に置く。 */
 .nav{
-  position:fixed;left:0;right:0;bottom:0;z-index:35;
-  display:flex;background:var(--washi);border-top:1px solid var(--rule);
-  padding-bottom:env(safe-area-inset-bottom);
+  position:sticky;top:0;z-index:35;
+  display:flex;gap:2px;background:var(--washi);
+  border-bottom:1px solid var(--rule);
+  max-width:1120px;margin:0 auto;padding:0 20px;
 }
 .nav button{
-  flex:1;appearance:none;border:0;background:none;cursor:pointer;
-  font-family:var(--ser);font-size:13.5px;letter-spacing:.12em;
-  color:var(--sumi-3);padding:14px 0 13px;position:relative;
+  flex:0 0 auto;appearance:none;border:0;background:none;cursor:pointer;
+  font-family:var(--ser);font-size:14px;letter-spacing:.14em;
+  color:var(--sumi-3);padding:11px 18px 13px;position:relative;
 }
 .nav button[aria-selected="true"]{color:var(--sumi)}
 .nav button[aria-selected="true"]::after{
   content:"";position:absolute;left:50%;transform:translateX(-50%);
-  bottom:7px;width:14px;height:1px;background:var(--sumi);
+  bottom:5px;width:18px;height:1px;background:var(--sumi);
 }
 .nav button:focus-visible{outline:1px solid var(--sumi-3);outline-offset:-4px}
-
-@media (min-width:800px){
-  .nav{position:sticky;top:0;bottom:auto;border-top:0;border-bottom:1px solid var(--rule);
-    max-width:1120px;margin:0 auto;padding:0 20px;justify-content:flex-start;gap:4px}
-  .nav button{flex:0 0 auto;padding:10px 20px 12px}
-  .nav button[aria-selected="true"]::after{bottom:4px;width:18px}
-  header.top{position:static}
-  .wrap{padding-bottom:64px}
+@media (max-width:560px){
+  .nav{padding:0 10px}
+  .nav button{flex:1;padding:11px 0 13px;font-size:13.5px;letter-spacing:.08em}
 }
 
 /* ---------------- 節（カードではなく余白で分ける） ---------------- */
 .sec{margin:34px 0 0}
 .sec:first-child{margin-top:22px}
 .sec > .hd{
-  font-family:var(--ser);font-size:12px;letter-spacing:.24em;color:var(--sumi-3);
-  margin:0 0 12px;font-weight:500;
+  font-family:var(--ser);font-size:13.5px;letter-spacing:.16em;color:var(--sumi-2);
+  margin:0 0 14px;font-weight:500;padding-bottom:7px;
+  border-bottom:1px solid var(--rule);display:flex;align-items:baseline;gap:4px;
 }
-.sec > .hd b{font-family:var(--ser);font-size:15px;color:var(--sumi);letter-spacing:.04em;font-weight:500}
+.sec > .hd b{font-family:var(--ser);font-size:19px;color:var(--sumi);letter-spacing:.02em;font-weight:500}
 .rule{height:1px;background:var(--rule-2);border:0;margin:0}
 
 h2{font-family:var(--ser);font-size:20px;font-weight:500;margin:0;letter-spacing:.04em;
@@ -237,11 +234,12 @@ label.fld{display:block;font-size:11.5px;letter-spacing:.1em;color:var(--sumi-3)
 .t-where{font-size:13px;color:var(--sumi-3);letter-spacing:.04em;margin:0 0 4px}
 .t-title{font-family:var(--ser);font-size:16px;color:var(--sumi-2);margin:0 0 2px;letter-spacing:.04em}
 
-.todo{border-top:1px solid var(--rule-2)}
+.todo{border-top:1px solid var(--rule)}
 .todo-row{
   display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:start;
-  padding:15px 2px;border-bottom:1px solid var(--rule-2);
+  padding:15px 4px;border-bottom:1px solid var(--rule-2);border-radius:2px;
 }
+.todo-row:hover{background:var(--sunk)}
 .todo-text{font-size:16px;line-height:1.7;cursor:pointer}
 .todo-row.done .todo-text{color:var(--sumi-3);text-decoration:line-through;
   text-decoration-thickness:1px;text-decoration-color:var(--rule)}
@@ -256,13 +254,16 @@ label.fld{display:block;font-size:11.5px;letter-spacing:.1em;color:var(--sumi-3)
 .count b{font-size:17px;color:var(--sumi);font-weight:500}
 
 /* 静かな進み（棒ではなく点） */
-.beads{display:flex;gap:5px;align-items:center}
-.beads i{width:6px;height:6px;border-radius:50%;background:var(--rule);flex:none}
-.beads i.on{background:var(--sumi-2)}
-.beads i.cur{box-shadow:0 0 0 2px color-mix(in oklab,var(--shu) 40%,transparent)}
+.beads{display:flex;gap:4px;align-items:center}
+.beads i{width:15px;height:15px;border-radius:2px;flex:none;
+  background:var(--sunk);border:1px solid var(--rule)}
+.beads i.on{background:color-mix(in oklab,var(--c,var(--sumi-2)) 62%,var(--washi));
+  border-color:color-mix(in oklab,var(--c,var(--sumi-2)) 62%,var(--washi))}
+.beads i.cur{outline:1px solid var(--shu);outline-offset:1px}
 
 /* 呼びかけ（解き直し・やり残し）——枠ではなく左の細い罫 */
-.call{border-left:2px solid var(--c,var(--rule));padding-left:16px}
+.call{border-left:3px solid var(--c,var(--rule));padding:2px 0 2px 16px;
+  background:color-mix(in oklab,var(--c,var(--rule)) 5%,transparent);border-radius:0 2px 2px 0}
 .call.warn{--c:color-mix(in oklab,var(--warn) 60%,var(--rule))}
 .call.bad{--c:color-mix(in oklab,var(--bad) 55%,var(--rule))}
 .call-row{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
@@ -310,11 +311,14 @@ details.fold .body{padding:0 0 14px}
 .bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 
 /* 日ごと */
-.d2{border-top:1px solid var(--rule-2);padding:12px 0 10px}
+.d2{border-top:1px solid var(--rule-2);padding:13px 0 11px}
+.d2.today{background:color-mix(in oklab,var(--shu) 4%,transparent);
+  box-shadow:inset 3px 0 0 var(--shu);padding-left:12px;border-radius:2px}
 .d2:last-of-type{border-bottom:1px solid var(--rule-2)}
-.d2-head{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
+.d2-head{display:flex;align-items:baseline;gap:10px;margin-bottom:4px;
+  padding-bottom:5px;border-bottom:1px solid var(--rule-2)}
 .d2-dow{font-family:var(--ser);font-size:13px;color:var(--sumi-3);letter-spacing:.08em}
-.d2-dow b{font-size:16px;color:var(--sumi);font-weight:500;margin-right:5px}
+.d2-dow b{font-size:18px;color:var(--sumi);font-weight:500;margin-right:6px}
 .d2.today .d2-dow b{color:var(--shu)}
 .d2.sun .d2-dow b{color:var(--bad)}
 .d2-count{margin-left:auto;font-family:var(--ser);font-size:12px;color:var(--sumi-3)}
@@ -341,9 +345,10 @@ details.fold .body{padding:0 0 14px}
 .spread-wrap{overflow-x:auto;margin:0 -20px;padding:0 20px;scrollbar-width:thin}
 .spread{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(178px,1fr);
   gap:0;min-width:100%;border-top:1px solid var(--rule-2)}
-.sp-col{border-right:1px solid var(--rule-2);padding:12px 12px 16px}
+.sp-col{border-right:1px solid var(--rule);padding:12px 12px 16px}
 .sp-col:last-child{border-right:0}
-.sp-col.today{background:color-mix(in oklab,var(--shu) 4%,transparent)}
+.sp-col.today{background:color-mix(in oklab,var(--shu) 5%,transparent);
+  box-shadow:inset 0 2px 0 var(--shu)}
 .sp-head{display:flex;align-items:baseline;gap:7px;margin-bottom:9px;
   padding-bottom:7px;border-bottom:1px solid var(--rule-2)}
 .sp-dow{font-family:var(--ser);font-size:15px;color:var(--sumi)}
@@ -394,9 +399,9 @@ details.fold .body{padding:0 0 14px}
 .wrow:focus-visible{outline:1px solid var(--sumi-3);outline-offset:-2px}
 .wrow.now{background:color-mix(in oklab,var(--shu) 4%,transparent)}
 .wrow.behind .wnum{color:var(--bad)}
-.wnum{font-family:var(--ser);font-size:15px;color:var(--sumi-3)}
+.wnum{font-family:var(--ser);font-size:17px;color:var(--sumi-2)}
 .wmain{min-width:0;display:flex;flex-direction:column;gap:1px}
-.wtitle{font-size:15px;line-height:1.5}
+.wtitle{font-size:15.5px;line-height:1.5}
 .wsub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:var(--sumi-3)}
 .wscore{font-family:var(--ser);font-size:12.5px;color:var(--sumi-3);min-width:40px;text-align:right}
 .wscore.pass{color:var(--good)}
@@ -465,14 +470,14 @@ details.fold .body{padding:0 0 14px}
 
 /* ---------------- FAB と下敷き ---------------- */
 .fab{
-  position:fixed;right:20px;bottom:calc(64px + env(safe-area-inset-bottom));z-index:36;
+  position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:36;
   appearance:none;border:1px solid var(--sumi);background:var(--washi);color:var(--sumi);
   font-family:var(--ser);font-size:13px;letter-spacing:.1em;
   padding:11px 17px;border-radius:2px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.10);
 }
 .fab:hover{background:var(--sumi);color:var(--washi)}
 .fab:focus-visible{outline:1px solid var(--sumi-3);outline-offset:2px}
-@media (min-width:800px){.fab{bottom:24px}}
+
 
 .sheet{position:fixed;inset:0;z-index:60;background:rgba(20,20,20,.34);
   display:flex;align-items:flex-end;justify-content:center}
@@ -503,13 +508,13 @@ body.gated{overflow:hidden}
 .gate-actions .btn{padding:11px 16px;font-size:14px}
 
 /* ---------------- その他 ---------------- */
-.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));
+.toast{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom));
   transform:translate(-50%,10px);max-width:min(520px,calc(100vw - 32px));z-index:80;
   background:var(--sumi);color:var(--washi);font-size:13.5px;line-height:1.6;
   padding:11px 18px;border-radius:2px;opacity:0;pointer-events:none;
   transition:opacity .18s,transform .18s}
 .toast.show{opacity:1;transform:translate(-50%,0)}
-@media (min-width:800px){.toast{bottom:24px}}
+
 
 .acct{border-left:2px solid var(--rule);padding-left:14px}
 .acct-label{font-size:11px;letter-spacing:.1em;color:var(--sumi-3)}
@@ -525,7 +530,7 @@ ul.tight li{margin-bottom:6px;font-size:14.5px;line-height:1.75}
 .hidden{display:none !important}
 
 @media (max-width:560px){
-  .wrap{padding:0 16px 132px}
+  .wrap{padding:0 16px 96px}
   .top-in{padding:12px 16px 10px}
   .menu{right:16px}
   .spread-wrap,.gantt{margin:0 -16px;padding:0 16px}
@@ -548,3 +553,43 @@ ul.tight li{margin-bottom:6px;font-size:14.5px;line-height:1.75}
   .spread{grid-auto-columns:1fr}
   .spread-wrap{overflow:visible;margin:0;padding:0}
 }
+
+/* ---------------- 道のり ---------------- */
+.road{position:relative;padding-left:26px}
+.road::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--rule)}
+
+.rd-phase{margin:26px 0 12px;padding-left:2px}
+.rd-phase:first-child{margin-top:4px}
+.rd-phase-name{display:block;font-family:var(--ser);font-size:15px;letter-spacing:.14em;color:var(--sumi)}
+.rd-phase-note{display:block;font-size:12.5px;color:var(--sumi-3);line-height:1.7;margin-top:2px}
+
+.rd-leg{position:relative;display:flex;gap:12px;padding:11px 0}
+.rd-dot{position:absolute;left:-26px;top:17px;width:11px;height:11px;border-radius:50%;
+  background:var(--washi);border:1px solid color-mix(in oklab,var(--c),white var(--lift))}
+.rd-leg.past .rd-dot{background:color-mix(in oklab,var(--c) 55%,var(--washi));border-color:transparent}
+.rd-leg.now .rd-dot{background:var(--shu);border-color:var(--shu);
+  box-shadow:0 0 0 3px color-mix(in oklab,var(--shu) 22%,transparent)}
+.rd-leg.future{opacity:.72}
+.rd-body{flex:1;min-width:0}
+.rd-line1{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.rd-name{font-family:var(--ser);font-size:16px;letter-spacing:.06em;
+  color:color-mix(in oklab,var(--c),white var(--lift))}
+.rd-weeks{font-family:var(--ser);font-size:12.5px;color:var(--sumi-3)}
+.rd-pct{margin-left:auto;font-family:var(--ser);font-size:13px;color:var(--sumi-2)}
+.rd-line2{display:flex;gap:12px;flex-wrap:wrap;margin:1px 0 7px;font-size:12px;color:var(--sumi-3)}
+.rd-topics{flex:1;min-width:0}
+.rd-ticks{display:flex;gap:3px}
+.rd-tick{width:100%;max-width:34px;height:17px;border:1px solid var(--rule);border-radius:1px;
+  background:linear-gradient(to top,
+    color-mix(in oklab,var(--c) 55%,var(--washi)) var(--f),
+    transparent var(--f));flex:1}
+.rd-tick.now{border-color:var(--shu)}
+
+.rd-mark{position:relative;display:flex;gap:12px;padding:12px 0 12px;margin:2px 0}
+.rd-mark-dot{position:absolute;left:-26px;top:17px;width:11px;height:11px;
+  background:var(--washi);border:1px solid var(--sumi-3);transform:rotate(45deg)}
+.rd-mark.exam .rd-mark-dot{border-color:var(--shu);background:var(--shu)}
+.rd-mark.past .rd-mark-dot{opacity:.4}
+.rd-mark-label{font-family:var(--ser);font-size:14.5px;letter-spacing:.06em}
+.rd-mark.exam .rd-mark-label{color:var(--shu)}
+.rd-mark-sub{font-size:12px;color:var(--sumi-3);margin-top:1px}

@@ -133,7 +133,8 @@ const CAUSES = [
    fix:"条件を図か表に書き出す練習", ng:"解答を先に見る"},
 ];
 
-const DOW = ["月","火","水","木","金","土","日"];
+const DOW = ["月","火","水","木","金","土","日"];      /* 位置での呼び方（既定の月曜始まり用） */
+const DOW_JP = ["日","月","火","水","木","金","土"];   /* 実際の曜日 */
 
 /* ============================================================
    2. 状態と保存
@@ -150,7 +151,9 @@ const state = {
   //   extra:[{id,text,day,done}] 自分で足したタスク
   errors: [],         // {id, ref, date, cause, r:[null|"YYYY-MM-DD" x3], cleared:false, wk:n}
   meta: {pledge:"", recovery:["","",""], examK:"2027-01-16", examN:"2027-02-25",
-         weekLayout:"day", allLayout:"list", lastRef:""},
+         weekLayout:"day", allLayout:"list", lastRef:"",
+         anchor:"2026-08-31",     /* 第1週の月曜。週は必ず月〜日 */
+         startDate:"2026-09-02"},  /* ここから数える。これより前はやり残しにしない */
 };
 
 function blankWeek(){
@@ -268,14 +271,29 @@ function diffDays(a, b){ return Math.round((parse(b) - parse(a)) / 86400000); }
 function todayStr(){ return ymd(new Date()); }
 function md(s){ const d = parse(s); return (d.getMonth()+1) + "/" + d.getDate(); }
 
+/* 週の枠は月曜はじまり・日曜おわりで固定する。ここは動かさない。 */
+function anchor(){ return state.meta.anchor || WEEKS[0].start; }
+/* 数え始める日。これより前の日はやり残しに出さないし、消化率にも入れない。 */
+function planStart(){ return state.meta.startDate || anchor(); }
+function planEnd(){ return ymd(addDays(parse(anchor()), 26*7 - 1)); }
+function beforeStart(ds){ return diffDays(planStart(), ds) < 0; }
+
 function currentWeekNo(){
-  const t = todayStr();
-  const idx = Math.floor(diffDays(WEEKS[0].start, t) / 7);
+  const idx = Math.floor(diffDays(anchor(), todayStr()) / 7);
   return Math.min(26, Math.max(1, idx + 1));
 }
 function weekDates(w){
-  const s = parse(w.start);
-  return Array.from({length:7}, (_,i)=> ymd(addDays(s, i)));
+  const base = addDays(parse(anchor()), (w.n - 1) * 7);
+  return Array.from({length:7}, (_,i)=> ymd(addDays(base, i)));
+}
+/* 曜日は位置ではなく実際の日付から出す（起点をずらしても正しく出る） */
+function dow(ds){ return DOW_JP[parse(ds).getDay()]; }
+function isSun(ds){ return parse(ds).getDay() === 0; }
+/* 次の月曜 */
+function nextMonday(){
+  const d = new Date();
+  d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+  return ymd(d);
 }
 
 function tasksOf(w){ const s = wk(w.n); return s.tasks || w.tasks; }
@@ -381,10 +399,11 @@ function leftovers(limit){
     const subsAll = tasksOf(w);
     for(let i=0;i<7;i++){
       if(diffDays(dates[i], today) <= 0) continue;    // 今日と未来は「やり残し」ではない
+      if(beforeStart(dates[i])) continue;             // 数え始める前の日は借金にしない
       const p = dayProgress(w.n, i);
       p.subs.forEach((text, j)=>{
         if(p.st[j] || p.sk[j]) return;
-        out.push({wn:w.n, i, j, text, date:dates[i], dow:DOW[i], week:w});
+        out.push({wn:w.n, i, j, text, date:dates[i], dow:dow(dates[i]), week:w});
       });
     }
   }
@@ -400,7 +419,7 @@ function todayIndex(){
     for(let i=0;i<7;i++) if(dates[i] === t) return {w, i, date:t};
   }
   const first = WEEKS[0], last = WEEKS[25];
-  if(diffDays(first.start, t) < 0) return {w:first, i:0, date:weekDates(first)[0], before:true};
+  if(diffDays(anchor(), t) < 0) return {w:first, i:0, date:weekDates(first)[0], before:true};
   return {w:last, i:6, date:weekDates(last)[6], after:true};
 }
 
@@ -466,13 +485,13 @@ function renderToday(){
   head.append(
     el("div",{class:"t-date"},
       el("span",{class:"t-md",text:(d.getMonth()+1)+"月"+d.getDate()+"日"}),
-      el("span",{class:"t-dow",text:DOW[i]+"曜"}),
+      el("span",{class:"t-dow",text:dow(T.date)+"曜"}),
       el("span",{class:"t-seal",text:"今日"}),
     ),
     el("p",{class:"t-where"}, "第"+w.n+"週　", el("span",{class:"ph",style:cvar,text:P.name})),
     el("p",{class:"t-title",text:w.title}),
   );
-  if(T.before) head.append(el("p",{class:"verdict",text:"計画の開始前です。"+md(WEEKS[0].start)+"から始まります。"}));
+  if(T.before) head.append(el("p",{class:"verdict",text:"計画の開始前です。"+md(planStart())+"から始まります。"}));
   if(T.after)  head.append(el("p",{class:"verdict",text:"計画の最終日を過ぎています。"}));
   main.append(head);
 
@@ -586,8 +605,8 @@ function addTaskRow(w, defaultDay){
   const inp = el("input",{type:"text",placeholder:"自分で足すこと"});
   const sl = el("select",{});
   sl.append(el("option",{value:"",text:"今週中"}));
-  DOW.forEach((dd,k)=>{
-    const o = el("option",{value:String(k),text:dd+" "+md(dates[k])});
+  dates.forEach((ds,k)=>{
+    const o = el("option",{value:String(k),text:dow(ds)+" "+md(ds)});
     if(defaultDay===k) o.selected = true;
     sl.append(o);
   });
@@ -635,7 +654,7 @@ function renderWeek(){
   head.append(
     el("div",{class:"wk-head"},
       el("span",{class:"wk-no",text:"第 "+w.n+" 週"}),
-      el("span",{class:"wk-dates",text:md(w.start)+" – "+md(dates[6])}),
+      el("span",{class:"wk-dates",text:md(dates[0])+" – "+md(dates[6])}),
       w.n===currentWeekNo() ? el("span",{class:"wnow",text:"今週"}) : null,
       el("div",{class:"wk-nav"},
         el("button",{class:"btn",onclick:()=>{ shownWeek=Math.max(1,shownWeek-1); editMode=false; render(); },"aria-label":"前の週"},"‹"),
@@ -675,7 +694,7 @@ function renderWeek(){
     return el("div",{class:"xrow" + (e.done?" done":"")},
       chk(e.done, ()=>{ e.done=!e.done; persist(); render(); }, e.text, true),
       el("span",{class:"xtext",text:e.text,onclick:()=>{ e.done=!e.done; persist(); render(); }}),
-      showDay ? el("span",{class:"gi-day",text: e.day==null ? "—" : DOW[e.day]}) : el("span",{}),
+      showDay ? el("span",{class:"gi-day",text: e.day==null ? "—" : dow(dates[e.day])}) : el("span",{}),
       el("button",{class:"xdel","aria-label":"削除",onclick:()=>{
         wk(w.n).extra = extrasOf(w).filter(x=>x.id!==e.id); persist(); render();
       }},"×"));
@@ -685,11 +704,11 @@ function renderWeek(){
   if(layout==="day"){
     tasksOf(w).forEach((task,i)=>{
       const p = dayProgress(w.n,i);
-      const box = el("div",{class:"d2" + (dates[i]===today?" today":"") + (i===6?" sun":"")});
+      const box = el("div",{class:"d2" + (dates[i]===today?" today":"") + (isSun(dates[i])?" sun":"")});
       box.append(el("div",{class:"d2-head"},
-        el("span",{class:"d2-dow"}, el("b",{text:DOW[i]}), md(dates[i])),
+        el("span",{class:"d2-dow"}, el("b",{text:dow(dates[i])}), md(dates[i])),
         el("span",{class:"d2-count",text:p.done+"/"+p.total}),
-        chk(s.d[i], ()=>toggleDay(w.n,i), DOW[i]+"曜をすべて完了")));
+        chk(s.d[i], ()=>toggleDay(w.n,i), dow(dates[i])+"曜をすべて完了")));
       if(editMode){
         const ta = el("textarea",{rows:"2",style:"font-size:14px;margin-top:8px"});
         ta.value = task;
@@ -742,7 +761,7 @@ function renderWeek(){
           box.append(el("div",{class:"grp-item" + (it.done?" done":"") + (it.skip&&!it.done?" skipped":"")},
             chk(it.done, ()=>toggleSub(w.n,it.i,it.j), it.text, true),
             el("span",{class:"gi-text",text:it.text,onclick:()=>toggleSub(w.n,it.i,it.j)}),
-            el("span",{class:"gi-day",text:DOW[it.i]})));
+            el("span",{class:"gi-day",text:dow(dates[it.i])})));
         });
         body.append(box);
       });
@@ -761,9 +780,9 @@ function renderWeek(){
     const grid = el("div",{class:"spread"});
     tasksOf(w).forEach((task,i)=>{
       const p = dayProgress(w.n,i);
-      const col = el("div",{class:"sp-col" + (dates[i]===today?" today":"") + (i===6?" sun":"")});
+      const col = el("div",{class:"sp-col" + (dates[i]===today?" today":"") + (isSun(dates[i])?" sun":"")});
       col.append(el("div",{class:"sp-head"},
-        el("span",{class:"sp-dow",text:DOW[i]}),
+        el("span",{class:"sp-dow",text:dow(dates[i])}),
         el("span",{class:"sp-md",text:md(dates[i])}),
         el("span",{class:"sp-count",text:p.done+"/"+p.total})));
       p.subs.forEach((text,j)=>{
@@ -877,6 +896,7 @@ function renderAll(){
     el("div",{class:"seg"},
       el("button",{"aria-pressed":String(allLayout==="list"),onclick:()=>{ allLayout="list"; render(); }},"一覧"),
       el("button",{"aria-pressed":String(allLayout==="gantt"),onclick:()=>{ allLayout="gantt"; render(); }},"工程表"),
+      el("button",{"aria-pressed":String(allLayout==="road"),onclick:()=>{ allLayout="road"; render(); }},"道のり"),
     ),
     allLayout==="list" ? el("button",{class:"linkbtn",style:"margin-left:auto",onclick:()=>{
       openWeek = openWeek==="all" ? null : "all"; render();
@@ -885,6 +905,7 @@ function renderAll(){
   root.append(swap);
 
   if(allLayout === "gantt") root.append(gantt(today));
+  else if(allLayout === "road") root.append(roadmap(today, now));
   else root.append(weekList(today, now));
 
   /* 12月の判断 */
@@ -919,7 +940,7 @@ function weekList(today, now){
         el("span",{class:"wtitle",text:w.title}),
         el("span",{class:"wsub"},
           el("span",{class:"ph",style:cvar,text:PHASE[w.ph].name}),
-          el("span",{text:md(w.start)+"–"+md(dates[6])}),
+          el("span",{text:md(dates[0])+"–"+md(dates[6])}),
           w.n===now ? el("span",{class:"wnow",text:"今週"}) : null)),
       beads,
       el("span",{class:"wscore" + (pct==null?"":(pct>=80?" pass":" fail")),
@@ -932,7 +953,7 @@ function weekList(today, now){
       const ol = el("ol",{class:"dlist"});
       tasksOf(w).forEach((t,i)=>{
         ol.append(el("li",{class: ws.d[i] ? "done" : ""},
-          el("span",{class:"dl-day",text:DOW[i]+" "+md(dates[i])}),
+          el("span",{class:"dl-day",text:dow(dates[i])+" "+md(dates[i])}),
           el("span",{class:"dl-task",text:t})));
       });
       det.append(ol);
@@ -954,8 +975,8 @@ function weekList(today, now){
 
 /* 工程表（案D） */
 function gantt(today){
-  const start = parse(WEEKS[0].start);
-  const end = addDays(parse(WEEKS[25].start), 6);
+  const start = parse(anchor());
+  const end = parse(planEnd());
   const span = Math.round((end - start)/86400000) + 1;
   const pos = ds => ((parse(ds) - start)/86400000) / span * 100;
 
@@ -981,8 +1002,7 @@ function gantt(today){
   });
 
   rows.forEach(r=>{
-    const w0 = WEEKS[r.from-1], w1 = WEEKS[r.to-1];
-    const s0 = w0.start, s1 = ymd(addDays(parse(w1.start),6));
+    const s0 = weekDates(WEEKS[r.from-1])[0], s1 = weekDates(WEEKS[r.to-1])[6];
     const left = pos(s0), right = pos(s1);
     let dTot = 0, dDone = 0;
     for(let n=r.from;n<=r.to;n++){ dTot += 7; dDone += wk(n).d.filter(Boolean).length; }
@@ -990,10 +1010,6 @@ function gantt(today){
     const bar = el("div",{class:"g-bar",style:`left:${left}%;width:${Math.max(right-left,1.2)}%`});
     bar.append(el("div",{class:"g-fill",style:`width:${dTot?dDone/dTot*100:0}%`}));
     track.append(bar);
-    if(diffDays(WEEKS[0].start,today) >= 0 && diffDays(today, s1) >= -400){
-      // 今日の線は最後にまとめて引く
-    }
-    rows.indexOf(r);
     inner.append(el("div",{class:"g-row",style:`--c:var(${PHASE[r.ph].v})`},
       el("span",{class:"g-name",text:PHASE[r.ph].name + "　" + r.from + (r.to!==r.from ? "–"+r.to : "")}),
       track));
@@ -1011,6 +1027,98 @@ function gantt(today){
   wrap.append(inner);
   return sec(null, wrap, el("p",{class:"muted",style:"margin-top:12px"},
     "分野ごとの帯。濃い部分が消化した割合。朱い線が今日の位置。"));
+}
+
+
+/* 道のり：どこを通ってきて、次に何が来るか。
+   区切りは分野の変わり目と、日付が決まっている出来事。 */
+function roadmap(today, now){
+  const box = el("div",{class:"road"});
+
+  /* 分野のまとまりに直す */
+  const legs = [];
+  WEEKS.forEach(w=>{
+    const last = legs[legs.length-1];
+    if(last && last.ph === w.ph && last.to === w.n-1) last.to = w.n;
+    else legs.push({ph:w.ph, from:w.n, to:w.n});
+  });
+
+  const PHASES = [
+    {name:"インプット期", note:"よくわかるを通し、基礎問で固める。12月末までに新規学習を終える。", upto:18},
+    {name:"数英集中",     note:"化学は1日30分の維持だけ。新規学習はしない。", upto:20},
+    {name:"化学スプリント", note:"共テ明けから化学に全投入。重問B → 過去問 → 弱点。", upto:26},
+  ];
+
+  const marks = [
+    {at:18, kind:"end",  label:"インプット完了", sub:"全分野が白紙で解ける状態にする"},
+    {at:20, kind:"exam", label:"共通テスト",     sub:state.meta.examK},
+    {at:26, kind:"exam", label:"二次試験",       sub:state.meta.examN},
+  ];
+
+  let pi = 0;
+  legs.forEach(leg=>{
+    /* 相の見出しをまたぐ位置で差し込む */
+    while(pi < PHASES.length && leg.from > (PHASES[pi].upto)){ pi++; }
+    if(pi < PHASES.length && (pi === 0 ? leg.from === 1 : leg.from === PHASES[pi-1].upto + 1)){
+      box.append(el("div",{class:"rd-phase"},
+        el("span",{class:"rd-phase-name",text:PHASES[pi].name}),
+        el("span",{class:"rd-phase-note",text:PHASES[pi].note})));
+    }
+
+    const d0 = weekDates(WEEKS[leg.from-1])[0];
+    const d1 = weekDates(WEEKS[leg.to-1])[6];
+    let tot=0, done=0;
+    for(let n=leg.from;n<=leg.to;n++){ tot += 7; done += wk(n).d.filter(Boolean).length; }
+    const pct = tot ? Math.round(done/tot*100) : 0;
+    const state_ = now > leg.to ? "past" : (now >= leg.from ? "now" : "future");
+    const nWeeks = leg.to - leg.from + 1;
+
+    const ticks = el("div",{class:"rd-ticks"});
+    for(let n=leg.from;n<=leg.to;n++){
+      const dn = wk(n).d.filter(Boolean).length;
+      ticks.append(el("span",{class:"rd-tick" + (n===now?" now":""),
+        title:"第"+n+"週 "+dn+"/7",
+        style:`--f:${dn/7*100}%`}));
+    }
+
+    box.append(el("div",{class:"rd-leg "+state_,style:`--c:var(${PHASE[leg.ph].v})`},
+      el("span",{class:"rd-dot"}),
+      el("div",{class:"rd-body"},
+        el("div",{class:"rd-line1"},
+          el("span",{class:"rd-name",text:PHASE[leg.ph].name}),
+          el("span",{class:"rd-weeks",text:"第"+leg.from+(nWeeks>1?"–"+leg.to:"")+"週"}),
+          state_==="now" ? el("span",{class:"wnow",text:"いまここ"}) : null,
+          el("span",{class:"rd-pct",text:pct+"%"}),
+        ),
+        el("div",{class:"rd-line2"},
+          el("span",{class:"rd-dates",text:md(d0)+"–"+md(d1)}),
+          el("span",{class:"rd-topics",text:
+            WEEKS.slice(leg.from-1, leg.to).map(x=>x.short).join("・")}),
+        ),
+        ticks,
+      )));
+
+    marks.filter(m=>m.at===leg.to).forEach(m=>{
+      const passed = m.kind==="exam" ? diffDays(today, m.sub) < 0 : now > m.at;
+      box.append(el("div",{class:"rd-mark "+m.kind+(passed?" past":"")},
+        el("span",{class:"rd-mark-dot"}),
+        el("div",{},
+          el("div",{class:"rd-mark-label",text:m.label}),
+          el("div",{class:"rd-mark-sub",text:
+            m.kind==="exam" ? md(m.sub)+"　あと"+Math.max(0,diffDays(today,m.sub))+"日" : m.sub}))));
+    });
+
+    if(leg.to === 17){
+      box.append(el("div",{class:"rd-mark note"},
+        el("span",{class:"rd-mark-dot"}),
+        el("div",{},
+          el("div",{class:"rd-mark-label",text:"ここで判断：高分子を1週前倒しするか"}),
+          el("div",{class:"rd-mark-sub",text:"有機が順調なら前倒し、第18週は総点検に充てる"}))));
+    }
+  });
+
+  return sec(null, box, el("p",{class:"muted",style:"margin-top:16px"},
+    "上から順に通る道。目盛りが1週で、埋まった高さがその週の消化。朱い印がいまいる場所。"));
 }
 
 /* ---------------- 誤答 ---------------- */
