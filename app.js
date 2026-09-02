@@ -300,6 +300,9 @@ function condsOf(w){ const s = wk(w.n); return s.conds || w.conds; }
 function renderWeek(){
   const root = document.getElementById("viewWeek");
   root.textContent = "";
+  const main = el("div",{class:"col-main"});
+  const side = el("div",{class:"col-side"});
+  root.append(el("div",{class:"cols"}, main, side));
   const w = WEEKS[shownWeek-1];
   const s = wk(w.n);
   const P = PHASE[w.ph];
@@ -311,11 +314,13 @@ function renderWeek(){
   const head = el("section",{class:"card",style:cvar});
   head.append(
     el("div",{class:"wk-head"},
-      el("div",{class:"wk-no mono"}, String(w.n).padStart(2,"0"), el("small",{text:"WEEK"})),
+      el("div",{class:"wk-no mono"}, String(w.n).padStart(2,"0")),
       el("div",{class:"wk-meta"},
-        el("div",{class:"wk-dates mono"}, md(w.start) + " – " + md(dates[6]) + "　" + parse(w.start).getFullYear()),
+        el("div",{class:"wk-line"},
+          el("span",{class:"wk-dates mono"}, md(w.start) + "–" + md(dates[6])),
+          el("span",{class:"ph",style:cvar,text:P.name}),
+        ),
         el("h2",{text:w.title}),
-        el("div",{style:"margin:2px 0 6px"}, el("span",{class:"ph",style:cvar,text:P.name})),
       ),
       el("div",{class:"wk-nav"},
         el("button",{class:"btn",onclick:()=>{ shownWeek=Math.max(1,shownWeek-1); editMode=false; render(); },"aria-label":"前の週"},"‹"),
@@ -323,17 +328,19 @@ function renderWeek(){
         el("button",{class:"btn",onclick:()=>{ shownWeek=Math.min(26,shownWeek+1); editMode=false; render(); },"aria-label":"次の週"},"›"),
       ),
     ),
-    el("p",{class:"muted",style:"margin:2px 0 12px",text:w.note}),
+    el("p",{class:"note",style:"margin:6px 0 10px",text:w.note}),
   );
 
   /* 到達メーター */
   const doneCount = s.d.filter(Boolean).length;
   head.append(
-    el("p",{class:"eyebrow",style:"margin-bottom:5px"},"今週の到達　", el("span",{class:"mono",text:doneCount+" / 7"})),
+    el("div",{class:"meter-row"},
+      el("span",{class:"eyebrow",style:"margin:0"},"今週の到達　", el("b",{class:"mono",text:doneCount+"/7"})),
+      el("span",{class:"muted",style:"margin-left:auto;font-size:12px"}, "Anki " + P.anki),
+    ),
     el("div",{class:"meter",style:cvar}, s.d.map(v=>el("i",{class: v ? "on" : ""}))),
-    el("p",{class:"muted",style:"margin-top:8px"}, "Anki目安：" + P.anki),
   );
-  root.append(head);
+  main.append(head);
 
   /* 解き直しの期限 */
   const due = dueToday();
@@ -351,7 +358,7 @@ function renderWeek(){
         el("button",{class:"btn danger",onclick:()=>{ resetEntry(e.id); }},"また間違えた"),
       ));
     });
-    root.append(b);
+    side.append(b);
   }
 
   /* 日別タスク */
@@ -397,7 +404,7 @@ function renderWeek(){
   if(editMode && wk(w.n).tasks){
     dayCard.append(el("button",{class:"btn",style:"margin-top:8px",onclick:()=>{ wk(w.n).tasks=null; persist(); render(); }},"元の計画に戻す"));
   }
-  root.append(dayCard);
+  main.append(dayCard);
 
   /* 合格条件 */
   const cc = el("section",{class:"card",style:cvar});
@@ -418,7 +425,7 @@ function renderWeek(){
     }
   });
   cc.append(clist);
-  root.append(cc);
+  side.append(cc);
 
   /* 週末チェック */
   const wc = el("section",{class:"card",style:cvar});
@@ -447,7 +454,7 @@ function renderWeek(){
   }else{
     wc.append(el("div",{class:"verdict"},"未記入。8割以上なら次へ、8割未満なら1週補修。"));
   }
-  root.append(wc);
+  side.append(wc);
 
   /* メモ */
   const mc = el("section",{class:"card"});
@@ -456,7 +463,7 @@ function renderWeek(){
   ta.value = s.memo || "";
   ta.addEventListener("input",()=>{ wk(w.n).memo = ta.value; persist(); });
   mc.append(ta);
-  root.append(mc);
+  side.append(mc);
 }
 
 function toggleDay(n, i){
@@ -466,103 +473,120 @@ function toggleDay(n, i){
   render();
 }
 
-/* --- 26週 --- */
+/* --- 26週：計画表 --- */
+let openWeek = null;   // 展開中の週
+
 function renderAll(){
   const root = document.getElementById("viewAll");
   root.textContent = "";
   const today = todayStr();
   const now = currentWeekNo();
 
-  /* 統計 */
-  const totalDays = 26*7;
+  /* 現在地 */
   const doneDays = WEEKS.reduce((a,w)=>a+wk(w.n).d.filter(Boolean).length,0);
-  const checked = WEEKS.filter(w=>wk(w.n).score != null);
-  const passed  = checked.filter(w=>wk(w.n).score >= 80).length;
+  const scored = WEEKS.filter(w=>wk(w.n).score != null);
+  const passed = scored.filter(w=>wk(w.n).score >= 80).length;
   const toN = Math.max(0, diffDays(today, state.meta.examN));
   const toK = Math.max(0, diffDays(today, state.meta.examK));
 
   const st = el("section",{class:"card"});
-  st.append(el("p",{class:"eyebrow",text:"現在地"}),
-    el("div",{class:"stats"},
-      el("div",{class:"stat"}, el("b",{class:"mono",text:doneDays+"/"+totalDays}), el("span",{text:"消化した日"})),
-      el("div",{class:"stat"}, el("b",{class:"mono",text:passed+"/"+checked.length}), el("span",{text:"週末チェック通過"})),
-      el("div",{class:"stat"}, el("b",{class:"mono",text:toK+"日"}), el("span",{text:"共通テストまで"})),
-      el("div",{class:"stat"}, el("b",{class:"mono",text:toN+"日"}), el("span",{text:"二次試験まで"})),
-    ));
+  st.append(el("div",{class:"stats"},
+    el("div",{class:"stat"}, el("b",{class:"mono",text:doneDays+"/182"}), el("span",{text:"消化した日"})),
+    el("div",{class:"stat"}, el("b",{class:"mono",text: scored.length ? passed+"/"+scored.length : "—"}), el("span",{text:"週末チェック通過"})),
+    el("div",{class:"stat"}, el("b",{class:"mono",text:toK+"日"}), el("span",{text:"共通テストまで"})),
+    el("div",{class:"stat"}, el("b",{class:"mono",text:toN+"日"}), el("span",{text:"二次試験まで"})),
+  ));
 
-  /* 三相構造 */
   const band = el("div",{class:"band"});
-  const phases = [
-    {label:"インプット期 第1–18週", n:18, v:"--ph-riron"},
-    {label:"数英集中 19–20", n:2, v:"--ph-kyote"},
-    {label:"化学スプリント 21–26", n:6, v:"--ph-ensyu"},
-  ];
-  phases.forEach(p=>{
-    const d = el("div",{style:`flex:${p.n};--c:var(${p.v})`,text:p.label});
-    band.append(d);
+  [{label:"インプット期　第1–18週", short:"インプット 1–18", n:18, v:"--ph-riron"},
+   {label:"数英集中 19–20", short:"数英 19–20", n:2, v:"--ph-kyote"},
+   {label:"化学スプリント 21–26", short:"演習 21–26", n:6, v:"--ph-ensyu"}].forEach(pz=>{
+    band.append(el("div",{style:`flex:${pz.n};--c:var(${pz.v})`},
+      el("span",{class:"b-long",text:pz.label}),
+      el("span",{class:"b-short",text:pz.short})));
   });
-  st.append(el("p",{class:"eyebrow",style:"margin:16px 0 0",text:"計画の三相構造"}), band,
-    el("p",{class:"muted",style:"margin-top:6px"},"化学は共通テストにない。だから1月は維持30分だけに落として数英へ寄せ、共テ明けから全投入する。"));
+  st.append(band);
+  st.append(el("p",{class:"note",style:"margin:8px 0 0"},
+    "化学は共通テストにない。だから1月は維持30分だけに落として数英へ寄せ、共テ明けから全投入する。"));
   root.append(st);
 
-  /* 週グリッド */
-  const g = el("section",{class:"card"});
-  g.append(el("p",{class:"eyebrow",text:"26週のトラック（タップでその週へ）"}));
-  const track = el("div",{class:"track"});
+  /* 計画表本体 */
+  const sc = el("section",{class:"card"});
+  sc.append(el("div",{class:"sched-head"},
+    el("p",{class:"eyebrow",style:"margin:0",text:"26週の計画"}),
+    el("button",{class:"btn",style:"margin-left:auto",onclick:()=>{
+      openWeek = (openWeek === "all") ? null : "all"; render();
+    }}, openWeek === "all" ? "すべて閉じる" : "すべて開く"),
+  ));
+
+  const sched = el("div",{class:"sched"});
   WEEKS.forEach(w=>{
-    const s = wk(w.n);
-    const done = s.d.filter(Boolean).length;
-    const past = diffDays(weekDates(w)[6], today) > 0;
-    const cell = el("button",{
-      class:"cell" + (w.n===now?" now":"") + (past && done<5 ? " past-undone":""),
-      style:`--c:var(${PHASE[w.ph].v})`,
-      onclick:()=>{ shownWeek=w.n; editMode=false; setView("week"); window.scrollTo({top:0}); },
+    const ws = wk(w.n);
+    const done = ws.d.filter(Boolean).length;
+    const dates = weekDates(w);
+    const past = diffDays(dates[6], today) > 0;
+    const isNow = w.n === now;
+    const open = openWeek === "all" || openWeek === w.n;
+    const cvar = `--c:var(${PHASE[w.ph].v})`;
+
+    const dots = el("span",{class:"wdots"});
+    ws.d.forEach(v=>dots.append(el("i",{class: v ? "on" : ""})));
+
+    const row = el("button",{
+      class:"wrow" + (isNow?" now":"") + (open?" open":"") + (past && done<5 ? " behind":""),
+      style:cvar, "aria-expanded":String(open),
+      onclick:()=>{ openWeek = (openWeek === w.n) ? null : w.n; render(); },
     },
-      el("div",{class:"n",text:String(w.n).padStart(2,"0")}),
-      el("div",{class:"l",text:w.short}),
-      el("div",{class:"fill",style:`width:${done/7*100}%`}),
+      el("span",{class:"wnum mono",text:String(w.n).padStart(2,"0")}),
+      el("span",{class:"wmain"},
+        el("span",{class:"wtitle",text:w.title}),
+        el("span",{class:"wsub"},
+          el("span",{class:"wph",text:PHASE[w.ph].name}),
+          el("span",{class:"wdate mono",text:md(w.start)+"–"+md(dates[6])}),
+          isNow ? el("span",{class:"wnow",text:"今週"}) : null,
+        ),
+      ),
+      dots,
+      el("span",{class:"wscore mono" + (ws.score==null ? "" : (ws.score>=80?" pass":" fail")),
+                 text: ws.score==null ? "—" : ws.score+"%"}),
     );
-    track.append(cell);
-  });
-  g.append(track);
+    sched.append(row);
 
-  const lg = el("div",{class:"legend"});
-  Object.entries(PHASE).forEach(([k,p])=>{
-    lg.append(el("b",{style:`--c:var(${p.v})`}, el("i",{}), p.name));
+    if(open){
+      const det = el("div",{class:"wdetail",style:cvar});
+      det.append(el("p",{class:"note",style:"margin:0 0 10px",text:w.note}));
+      const list = el("ol",{class:"dlist"});
+      tasksOf(w).forEach((t,i)=>{
+        list.append(el("li",{class: ws.d[i] ? "done" : ""},
+          el("span",{class:"dl-day mono",text:DOW[i]+" "+md(dates[i])}),
+          el("span",{class:"dl-task",text:t}),
+        ));
+      });
+      det.append(list);
+      det.append(el("p",{class:"eyebrow",style:"margin:12px 0 4px",text:"合格条件"}));
+      const cl = el("ul",{class:"clist"});
+      condsOf(w).forEach((c,i)=>cl.append(el("li",{class: ws.c[i] ? "done":"", text:c})));
+      det.append(cl);
+      det.append(el("div",{style:"display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"},
+        el("span",{class:"note",style:"flex:1;min-width:120px"}, "Anki目安：" + PHASE[w.ph].anki),
+        el("button",{class:"btn primary",onclick:(ev)=>{
+          ev.stopPropagation();
+          shownWeek=w.n; editMode=false; setView("week"); window.scrollTo({top:0});
+        }},"この週を開く"),
+      ));
+      sched.append(det);
+    }
   });
-  g.append(lg);
-  g.append(el("p",{class:"muted",style:"margin-top:10px"},"右上に赤点＝終わった週なのに5日未満しか消化していない週。"));
-  root.append(g);
-
-  /* 週の一覧表 */
-  const tw = el("section",{class:"card"});
-  tw.append(el("p",{class:"eyebrow",text:"全26週"}));
-  const wrap = el("div",{class:"tbl-wrap"});
-  const tb = el("table");
-  tb.append(el("thead",{},el("tr",{},
-    el("th",{text:"週"}),el("th",{text:"期間"}),el("th",{text:"分野"}),el("th",{text:"内容"}),el("th",{text:"消化"}),el("th",{text:"週末"}))));
-  const body = el("tbody");
-  WEEKS.forEach(w=>{
-    const s = wk(w.n);
-    const done = s.d.filter(Boolean).length;
-    const sc = s.score;
-    body.append(el("tr",{style:"cursor:pointer",onclick:()=>{ shownWeek=w.n; editMode=false; setView("week"); window.scrollTo({top:0}); }},
-      el("td",{class:"num",text:String(w.n)}),
-      el("td",{class:"num",text:md(w.start)+"–"+md(weekDates(w)[6])}),
-      el("td",{}, el("span",{class:"ph",style:`--c:var(${PHASE[w.ph].v})`,text:PHASE[w.ph].name})),
-      el("td",{text:w.title}),
-      el("td",{class:"num",text:done+"/7"}),
-      el("td",{class:"num",style: sc==null ? "" : (sc>=80?"color:var(--good)":"color:var(--bad)"), text: sc==null ? "—" : sc+"%"}),
-    ));
-  });
-  tb.append(body); wrap.append(tb); tw.append(wrap);
-  root.append(tw);
+  sc.append(sched);
+  sc.append(el("p",{class:"note",style:"margin-top:12px"},
+    "行をタップすると7日分が開く。左端の色が分野、右の点が消化した日、いちばん右が週末チェックの正答率。赤い線は終わったのに5日未満しか消化していない週。"));
+  root.append(sc);
 
   /* リスク */
   const risk = el("section",{class:"card"});
   risk.append(el("p",{class:"eyebrow",text:"12月上旬に判断すること"}),
     el("p",{style:"margin-bottom:6px"},"第18週（12/28–1/3）の高分子が年末年始と重なる。"),
-    el("p",{class:"muted",style:"margin:0"},"第15〜17週（有機）が順調なら1週前倒しし、12/21–12/27に高分子、12/28–1/3を化学基礎〜理論の総点検に充てるほうが安全。上の「内容を編集」で各週のタスクを差し替えられる。"));
+    el("p",{class:"note",style:"margin:0"},"第15〜17週（有機）が順調なら1週前倒しし、12/21–12/27に高分子、12/28–1/3を化学基礎〜理論の総点検に充てるほうが安全。各週の「内容を編集」でタスクを差し替えられる。"));
   root.append(risk);
 }
 
