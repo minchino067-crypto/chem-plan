@@ -148,7 +148,7 @@ const state = {
 
 function blankWeek(){
   return {d:[false,false,false,false,false,false,false],
-          c:[false,false,false], score:null, anki:null, memo:"", tasks:null, conds:null};
+          c:[false,false,false], score:null, anki:null, memo:"", tasks:null, conds:null, extra:[]};
 }
 function wk(n){
   const k = String(n);
@@ -294,6 +294,26 @@ const el = (tag, attrs, ...kids)=>{
 };
 
 function tasksOf(w){ const s = wk(w.n); return s.tasks || w.tasks; }
+function extrasOf(w){ const s = wk(w.n); if(!Array.isArray(s.extra)) s.extra = []; return s.extra; }
+
+/* 教材ごとの分類。KOKUYOのスタディプランナーが教科ごとに
+   「今週やること」を書き出すのと同じ役割を、単一科目なので教材で担う。
+   1つのタスクに複数の教材が出てくるときは、先に出てきたほうを主とする。 */
+const SRC = [
+  {k:"check", label:"週末チェック・総点検", v:"--ph-ensyu", re:/週末チェック|総点検|総ざらい|再走|最終確認/},
+  {k:"kako",  label:"過去問",             v:"--ph-ensyu", re:/過去問|二次試験|共通テスト/},
+  {k:"jyu",   label:"重要問題集",          v:"--ph-muki",  re:/重要問題集|重問/},
+  {k:"kiso",  label:"基礎問題精講",        v:"--ph-riron", re:/基礎問/},
+  {k:"anki",  label:"Anki",               v:"--ph-yuki",  re:/Anki/},
+];
+const SRC_READ = {k:"yoku", label:"よくわかる（読む）", v:"--ph-kiso"};
+
+function classify(t){
+  const hits = SRC.map(x=>({x, i:t.search(x.re)})).filter(h=>h.i >= 0);
+  if(!hits.length) return SRC_READ;
+  hits.sort((a,b)=>a.i-b.i);
+  return hits[0].x;
+}
 function condsOf(w){ const s = wk(w.n); return s.conds || w.conds; }
 
 /* --- 今週 --- */
@@ -361,45 +381,166 @@ function renderWeek(){
     side.append(b);
   }
 
-  /* 日別タスク */
+  /* --- レイアウト切替：日ごと / 週まとめ --- */
+  const layout = state.meta.weekLayout === "sum" ? "sum" : "day";
+
   const dayCard = el("section",{class:"card",style:cvar});
   dayCard.append(
-    el("div",{style:"display:flex;align-items:baseline;gap:10px"},
-      el("p",{class:"eyebrow",style:"margin:0",text:"日ごとのタスク"}),
-      el("button",{class:"btn",style:"margin-left:auto",onclick:()=>{ editMode=!editMode; render(); }}, editMode ? "編集を終える" : "内容を編集"),
+    el("div",{class:"sched-head"},
+      el("div",{class:"seg seg-sm",style:cvar},
+        el("button",{"aria-pressed":String(layout==="day"),
+          onclick:()=>{ state.meta.weekLayout="day"; persist(); render(); }},"日ごと"),
+        el("button",{"aria-pressed":String(layout==="sum"),
+          onclick:()=>{ state.meta.weekLayout="sum"; persist(); render(); }},"週まとめ"),
+      ),
+      el("button",{class:"btn",style:"margin-left:auto",onclick:()=>{ editMode=!editMode; render(); }},
+        editMode ? "編集を終える" : "内容を編集"),
     ),
-    el("p",{class:"muted",style:"margin:6px 0 10px"},"月〜木＝よくわかるを読む＋基礎問／金・土＝問題演習／日＝週末チェック。行をタップすると消える。"),
   );
 
-  const days = el("div",{class:"days"});
-  tasksOf(w).forEach((task, i)=>{
-    const isToday = dates[i] === today;
-    const row = el("div",{class:"day" + (s.d[i]?" done":"") + (isToday?" today":"") + (i===6?" sun":"")});
-    row.append(el("div",{class:"dw mono"}, el("b",{text:DOW[i]}), md(dates[i])));
+  const extras = extrasOf(w);
+  const plannedDone = s.d.filter(Boolean).length;
+  const extraDone = extras.filter(e=>e.done).length;
+  const total = 7 + extras.length;
+  const totalDone = plannedDone + extraDone;
 
-    if(editMode){
-      const ta = el("textarea",{rows:"2",style:"font-size:13px"});
-      ta.value = task;
-      ta.addEventListener("change", ()=>{
-        const arr = tasksOf(w).slice(); arr[i] = ta.value;
-        wk(w.n).tasks = arr; persist();
-      });
-      row.append(ta);
-    }else{
-      row.append(el("div",{class:"dtask",text:task,onclick:()=>toggleDay(w.n,i)}));
-    }
+  /* 今週やることの総量 */
+  dayCard.append(
+    el("div",{class:"totalbar"},
+      el("span",{class:"tb-label"},"今週やること　",
+        el("b",{class:"mono",text:totalDone+" / "+total}),
+        el("span",{class:"muted",style:"margin-left:6px",text:"件"})),
+      el("div",{class:"tb-track"}, el("div",{class:"tb-fill",style:`width:${total?totalDone/total*100:0}%`})),
+    ),
+  );
 
-    row.append(
-      (()=>{
+  /* --- 追加タスクの入力（両レイアウト共通） --- */
+  function addExtraRow(){
+    const inp = el("input",{type:"text",placeholder:"自分で足すこと（例：無機の反応式を10個書く）"});
+    const sel = el("select",{});
+    sel.append(el("option",{value:"",text:"今週中"}));
+    DOW.forEach((d,i)=>sel.append(el("option",{value:String(i),text:d+" "+md(dates[i])})));
+    const add = ()=>{
+      const t = inp.value.trim(); if(!t) { inp.focus(); return; }
+      extrasOf(w).push({id:"x"+Date.now()+Math.random().toString(36).slice(2,5),
+                        text:t, day: sel.value==="" ? null : Number(sel.value), done:false});
+      persist(); render();
+    };
+    inp.addEventListener("keydown", ev=>{ if(ev.key==="Enter") add(); });
+    return el("div",{class:"row addrow",style:"margin-top:12px"},
+      el("div",{class:"addrow-in"}, inp),
+      el("div",{class:"shrink",style:"min-width:104px"}, sel),
+      el("div",{class:"shrink"}, el("button",{class:"btn primary",onclick:add},"足す")),
+    );
+  }
+
+  function extraLine(e){
+    const box = el("input",{type:"checkbox",class:"chk chk-sm"});
+    box.checked = !!e.done;
+    box.addEventListener("change", ()=>{ e.done = box.checked; persist(); render(); });
+    return el("div",{class:"xrow" + (e.done?" done":"")},
+      box,
+      el("span",{class:"xtext",text:e.text,onclick:()=>{ e.done=!e.done; persist(); render(); }}),
+      el("button",{class:"xdel","aria-label":"削除",onclick:()=>{
+        wk(w.n).extra = extrasOf(w).filter(x=>x.id!==e.id); persist(); render();
+      }},"×"),
+    );
+  }
+
+  if(layout === "day"){
+    /* ---------- 日ごと ---------- */
+    dayCard.append(el("p",{class:"note",style:"margin:10px 0 8px"},
+      "月〜木＝よくわかるを読む＋基礎問／金・土＝問題演習／日＝週末チェック。行をタップすると消える。"));
+
+    const days = el("div",{class:"days"});
+    tasksOf(w).forEach((task, i)=>{
+      const isToday = dates[i] === today;
+      const row = el("div",{class:"day" + (s.d[i]?" done":"") + (isToday?" today":"") + (i===6?" sun":"")});
+      row.append(el("div",{class:"dw mono"}, el("b",{text:DOW[i]}), md(dates[i])));
+
+      if(editMode){
+        const ta = el("textarea",{rows:"2",style:"font-size:13px"});
+        ta.value = task;
+        ta.addEventListener("change", ()=>{
+          const arr = tasksOf(w).slice(); arr[i] = ta.value;
+          wk(w.n).tasks = arr; persist();
+        });
+        row.append(ta);
+      }else{
+        const cell = el("div",{});
+        cell.append(el("div",{class:"dtask",text:task,onclick:()=>toggleDay(w.n,i)}));
+        extras.filter(e=>e.day===i).forEach(e=>cell.append(extraLine(e)));
+        row.append(cell);
+      }
+
+      row.append((()=>{
         const c = el("input",{type:"checkbox",class:"chk","aria-label":DOW[i]+"曜を完了"});
         c.checked = !!s.d[i];
         c.addEventListener("change", ()=>toggleDay(w.n,i));
         return c;
-      })(),
-    );
-    days.append(row);
-  });
-  dayCard.append(days);
+      })());
+      days.append(row);
+    });
+    dayCard.append(days);
+
+    const loose = extras.filter(e=>e.day==null);
+    if(loose.length){
+      dayCard.append(el("p",{class:"eyebrow",style:"margin:14px 0 4px",text:"日を決めていないもの"}));
+      loose.forEach(e=>dayCard.append(extraLine(e)));
+    }
+  }else{
+    /* ---------- 週まとめ：教材ごとの「やることリスト」 ---------- */
+    dayCard.append(el("p",{class:"note",style:"margin:10px 0 10px"},
+      "今週やることを教材ごとにまとめたもの。順番は自由。どの曜日の分かは右端に出る。"));
+
+    const groups = new Map();
+    tasksOf(w).forEach((t,i)=>{
+      const g = classify(t);
+      if(!groups.has(g.k)) groups.set(g.k, {g, items:[]});
+      groups.get(g.k).items.push({t, i});
+    });
+
+    /* 表示は学習の流れ順（読む→解く→暗記→確認）。分類の優先順とは別。 */
+    const ORDER = ["yoku","kiso","jyu","kako","anki","check"];
+    const order = ORDER.map(k => k === "yoku" ? SRC_READ : SRC.find(x=>x.k===k));
+    order.forEach(gdef=>{
+      const grp = groups.get(gdef.k);
+      if(!grp) return;
+      const done = grp.items.filter(x=>s.d[x.i]).length;
+      const box = el("div",{class:"grp",style:`--c:var(${gdef.v})`});
+      box.append(el("div",{class:"grp-head"},
+        el("span",{class:"grp-name",text:gdef.label}),
+        el("span",{class:"grp-count mono",text:done+"/"+grp.items.length}),
+      ));
+      grp.items.forEach(({t,i})=>{
+        const c = el("input",{type:"checkbox",class:"chk chk-sm"});
+        c.checked = !!s.d[i];
+        c.addEventListener("change", ()=>toggleDay(w.n,i));
+        box.append(el("div",{class:"grp-item" + (s.d[i]?" done":"")},
+          c,
+          el("span",{class:"gi-text",text:t,onclick:()=>toggleDay(w.n,i)}),
+          el("span",{class:"gi-day mono",text:DOW[i]}),
+        ));
+      });
+      dayCard.append(box);
+    });
+
+    if(extras.length){
+      const box = el("div",{class:"grp",style:"--c:var(--ph-kobun)"});
+      box.append(el("div",{class:"grp-head"},
+        el("span",{class:"grp-name",text:"自分で足したこと"}),
+        el("span",{class:"grp-count mono",text:extraDone+"/"+extras.length}),
+      ));
+      extras.forEach(e=>{
+        const line = extraLine(e);
+        line.append(el("span",{class:"gi-day mono",text: e.day==null ? "—" : DOW[e.day]}));
+        box.append(line);
+      });
+      dayCard.append(box);
+    }
+  }
+
+  dayCard.append(addExtraRow());
 
   if(editMode && wk(w.n).tasks){
     dayCard.append(el("button",{class:"btn",style:"margin-top:8px",onclick:()=>{ wk(w.n).tasks=null; persist(); render(); }},"元の計画に戻す"));

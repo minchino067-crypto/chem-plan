@@ -419,3 +419,46 @@ body.gated{overflow:hidden}
   .band .b-short{display:inline}
   .band div{font-size:10px;letter-spacing:0}
 }
+
+/* ---------- 週の総量バー ---------- */
+.totalbar{display:flex;flex-direction:column;gap:6px;margin:10px 0 2px}
+.tb-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+.tb-label b{font-size:15px;letter-spacing:0;color:var(--ink);text-transform:none}
+.tb-track{height:7px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.tb-fill{height:100%;border-radius:4px;background:color-mix(in oklab, var(--c) 82%, var(--surface));transition:width .3s}
+
+.seg-sm button{padding:5px 12px;font-size:12.5px;flex:0 0 auto}
+
+/* ---------- 週まとめ：教材ごと ---------- */
+.grp{border-left:3px solid color-mix(in oklab, var(--c), white var(--lift));
+  background:color-mix(in oklab, var(--c) 5%, var(--surface));
+  border-radius:0 8px 8px 0;padding:9px 12px 10px;margin-top:10px}
+.grp-head{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.grp-name{font-size:12px;font-weight:700;letter-spacing:.04em;
+  color:color-mix(in oklab, var(--c), white var(--lift))}
+.grp-count{font-size:11.5px;color:var(--ink-3);margin-left:auto}
+.grp-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;align-items:start;
+  padding:5px 0;border-bottom:1px solid color-mix(in oklab, var(--c) 12%, transparent)}
+.grp-item:last-child{border-bottom:0}
+.gi-text{font-size:14.5px;line-height:1.5;cursor:pointer}
+.grp-item.done .gi-text{color:var(--ink-3);text-decoration:line-through}
+.gi-day{font-size:11px;color:var(--ink-3);padding-top:3px}
+
+/* ---------- 追加タスク ---------- */
+.chk-sm{width:18px;height:18px;border-radius:4px;margin-top:1px}
+.chk-sm:checked::after{width:9px;height:5px;transform:rotate(-45deg) translate(1px,-2px)}
+.xrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:9px;align-items:start;padding:4px 0}
+.xtext{font-size:14px;line-height:1.5;cursor:pointer;color:var(--ink-2)}
+.xrow.done .xtext{color:var(--ink-3);text-decoration:line-through}
+.xdel{appearance:none;border:0;background:none;cursor:pointer;color:var(--ink-3);
+  font-size:16px;line-height:1;padding:0 4px}
+.xdel:hover{color:var(--bad)}
+.grp .xrow{grid-template-columns:auto minmax(0,1fr) auto auto;
+  border-bottom:1px solid color-mix(in oklab, var(--c) 12%, transparent);padding:5px 0}
+.grp .xrow:last-child{border-bottom:0}
+
+.addrow-in{flex:3;min-width:140px}
+@media (max-width:560px){
+  .addrow-in{flex-basis:100%}
+  .addrow{gap:7px}
+}
